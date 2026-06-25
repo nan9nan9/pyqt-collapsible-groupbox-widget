@@ -90,7 +90,13 @@ def main():
     QVBoxLayout(g_pm).addWidget(QCheckBox("옵션"))
     outer.addWidget(g_pm)
 
-    # 7) 애니메이션을 끈 그룹 + 외부 토글 버튼
+    # 7) 아이콘 크기 키우기 (setArrowSize, 또는 환경변수 COLLAPSIBLE_ARROW_SIZE)
+    g_big = CollapsibleGroupBox("큰 아이콘")
+    g_big.setArrowSize(22)
+    QVBoxLayout(g_big).addWidget(QCheckBox("옵션"))
+    outer.addWidget(g_big)
+
+    # 8) 애니메이션을 끈 그룹 + 외부 토글 버튼
     g3 = CollapsibleGroupBox("애니메이션 없음")
     g3.setAnimated(False)
     f3 = QVBoxLayout(g3)
@@ -102,7 +108,7 @@ def main():
     outer.addWidget(toggle_btn)
 
     outer.addStretch(1)
-    root.resize(380, 720)
+    root.resize(380, 780)
     root.show()
     sys.exit(app.exec_())
 

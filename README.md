@@ -75,6 +75,7 @@ sync.setCollapsed(True)
 | `setAnimationDuration(ms)` / `animationDuration()` | 애니메이션 길이 (기본 180ms) |
 | `setArrowColor(color)` | 화살표 색 지정 (`QColor`/`"red"`/`"#3498db"`, `None`=글자색) |
 | `setArrowStyle(style)` / `arrowStyle()` | 아이콘 모양: `ArrowChevron`(˅/›, 기본) / `ArrowTriangle`(▼/▶) / `ArrowPlusMinus`(−/+) |
+| `setArrowSize(px)` / `arrowSize()` | 아이콘 크기(px). `None`=폰트에 맞춰 자동. 전역 기본값은 환경변수 `COLLAPSIBLE_ARROW_SIZE` |
 | `setTitle(text)` | 일반 텍스트 또는 **HTML**(`<b>`, `<font color>` 등) 지원 |
 | `setSummaryEnabled(bool)` / `isSummaryEnabled()` | **접었을 때** 헤더에 요약 표시 기능 on/off (기본 off) |
 | `setSummary(text)` / `summary()` | 접었을 때 보일 요약 텍스트(HTML 가능) |
@@ -84,6 +85,12 @@ sync.setCollapsed(True)
 
 요약 위치 상수는 `CollapsibleGroupBox.SummaryBeside` / `.SummaryInside` 이다.
 제목 위치/스타일은 `QGroupBox` 표준 스타일시트(`QGroupBox::title { ... }`)로 조정한다.
+
+### 환경 변수
+
+| 변수 | 설명 |
+|---|---|
+| `COLLAPSIBLE_ARROW_SIZE` | 모든 위젯의 접기/펴기 아이콘 기본 크기(px). 예: `COLLAPSIBLE_ARROW_SIZE=18`. 인스턴스별로는 `setArrowSize()` 가 우선한다. |
 
 > `title()` 은 `setTitle` 에 넣은 **원본**을 그대로 반환한다(HTML 이면 HTML, 화살표 들여쓰기 제외).
 > 좁은 폭에서 일반 제목은 말줄임(…)으로, HTML 제목은 폭이 부족하면 우측이 잘린다.

@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import os
+
 from qtpy.QtCore import (
     Qt, Signal, Property, QPropertyAnimation, QEasingCurve,
     QRectF, QPointF, QSize, QEvent,
@@ -49,6 +51,22 @@ def _might_be_rich(text):
     return bool(fn(text)) if fn is not None else ("<" in text and ">" in text)
 
 
+# 화살표 기본 크기를 OS 환경변수로 덮어쓸 수 있다(simeditor 의 $SIMEDITOR_* 패턴과 동일).
+#   COLLAPSIBLE_ARROW_SIZE=18  → 모든 위젯의 기본 화살표 크기(px)
+# 인스턴스별로는 setArrowSize() 로 따로 조절한다.
+ARROW_SIZE_ENV = "COLLAPSIBLE_ARROW_SIZE"
+
+
+def _env_arrow_size():
+    raw = os.environ.get(ARROW_SIZE_ENV)
+    if raw:
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            pass
+    return None
+
+
 class CollapsibleGroupBox(QGroupBox):
     """접기/펴기가 가능한 QGroupBox.
 
@@ -69,6 +87,7 @@ class CollapsibleGroupBox(QGroupBox):
         - setAnimationDuration(int) / animationDuration()
         - setArrowColor(color)                    (화살표 색 지정, None=글자색)
         - setArrowStyle(style) / arrowStyle()     (ArrowChevron | ArrowTriangle | ArrowPlusMinus)
+        - setArrowSize(px) / arrowSize()          (None=폰트 자동, 환경변수 COLLAPSIBLE_ARROW_SIZE)
         - setTitle(text)                          (일반 텍스트 또는 HTML 리치텍스트)
         - setSummaryEnabled(bool) / isSummaryEnabled()  (접었을 때 요약 표시 on/off)
         - setSummary(text) / summary()            (접었을 때 보일 요약, HTML 가능)
@@ -108,6 +127,8 @@ class CollapsibleGroupBox(QGroupBox):
         self._arrow_progress = 1.0
         self._arrow_color = None  # None 이면 팔레트(WindowText) 색을 따른다.
         self._arrow_style = self.ArrowChevron
+        # None 이면 폰트 크기에 맞춰 자동. 환경변수 COLLAPSIBLE_ARROW_SIZE 로 기본값 지정 가능.
+        self._arrow_size_override = _env_arrow_size()
 
         self._anim = None
         self._arrow_anim = None
@@ -247,6 +268,21 @@ class CollapsibleGroupBox(QGroupBox):
 
     def arrowStyle(self):
         return self._arrow_style
+
+    def setArrowSize(self, size):
+        """접기/펴기 아이콘 크기(px)를 고정한다. None 이면 폰트 크기에 맞춰 자동 조절한다.
+
+        전역 기본값은 환경변수 ``COLLAPSIBLE_ARROW_SIZE`` 로도 지정할 수 있다.
+        """
+        self._arrow_size_override = None if size is None else max(1, int(size))
+        self._refresh_title()  # 화살표 자리(들여쓰기) 폭도 크기에 맞춰 갱신
+        self._refresh_collapsed_height()  # 접힌 상태면 헤더 높이도 다시 고정
+        self.updateGeometry()
+        self.update()
+
+    def arrowSize(self):
+        """현재 적용 중인 화살표 크기(px). 자동 모드면 폰트 기준으로 계산된 값."""
+        return self._arrow_size()
 
     # ------------------------------------------------------------------
     # 접힘 상태 API
@@ -556,8 +592,11 @@ class CollapsibleGroupBox(QGroupBox):
         label = self._subrect(QStyle.SC_GroupBoxLabel)
         checkbox = self._subrect(QStyle.SC_GroupBoxCheckBox)
         bottom = max(label.bottom(), checkbox.bottom(), 0)
-        h = bottom + max(4, self._frame_top())
-        return max(h, self.fontMetrics().height() + 6)
+        h = max(bottom + max(4, self._frame_top()), self.fontMetrics().height() + 6)
+        if self._collapsible:
+            # 폰트보다 큰 아이콘을 줘도 헤더 줄 안에 담겨 잘리지 않도록 한다.
+            h = max(h, self._arrow_size() + 4)
+        return h
 
     def _header_height(self):
         """접었을 때 남길 총 높이(제목 줄 + 필요 시 안쪽 요약 줄)."""
@@ -591,15 +630,16 @@ class CollapsibleGroupBox(QGroupBox):
     # 화살표(셰브론) 그리기
     # ------------------------------------------------------------------
     def _arrow_size(self):
-        """화살표 한 변의 픽셀 크기."""
+        """화살표 한 변의 픽셀 크기(설정값 우선, 없으면 폰트에 맞춰 자동)."""
+        if self._arrow_size_override is not None:
+            return self._arrow_size_override
         return max(9, int(self.fontMetrics().height() * 0.62))
 
     def _arrow_rect(self):
         """화살표를 그릴 정사각형 영역(제목 줄 왼쪽 들여쓰기 자리)."""
-        band = self._title_band()
         size = self._arrow_size()
         cx = self._title_left() + size / 2.0 + 2.0
-        cy = band.center().y() + 1.0
+        cy = self._title_band_height() / 2.0  # 헤더 줄 세로 중앙(아이콘 크기 반영)
         return QRectF(cx - size / 2.0, cy - size / 2.0, size, size)
 
     def _title_text_color(self):
@@ -748,6 +788,7 @@ class CollapsibleGroupBox(QGroupBox):
         if event.type() in (QEvent.FontChange, QEvent.StyleChange):
             self._title_doc = None  # 폰트 바뀌면 리치텍스트 문서도 다시 만든다.
             self._refresh_title()
+            self._refresh_collapsed_height()  # 헤더 높이 변화 → 접힌 박스 높이 재고정
             self._update_summary_label()
             self.update()
         elif event.type() == QEvent.EnabledChange:

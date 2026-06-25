@@ -29,7 +29,7 @@ box.setCollapsed(True)
 `QGroupBox` 의 모든 API 호환. 추가 멤버:
 `setCollapsed/isCollapsed`, `collapsed`(Qt 프로퍼티), `collapse/expand/toggleCollapsed`,
 `setCollapsible/isCollapsible`, `setAnimated/isAnimated`,
-`setAnimationDuration/animationDuration`, `setArrowColor`, `setArrowStyle`, `setTitle`(일반/HTML),
+`setAnimationDuration/animationDuration`, `setArrowColor`, `setArrowStyle`, `setArrowSize`, `setTitle`(일반/HTML),
 `setSummaryEnabled/setSummary/setSummaryPosition/summaryLabel`,
 시그널 `collapsedChanged(bool)`.
 
@@ -43,7 +43,7 @@ src/collapsible_groupbox/
 ├── collapsible_group_box.py  # 위젯 본체 (전체 구현이 이 한 파일)
 └── py.typed
 examples/  basic_example.py, embed_in_your_app.py
-tests/     test_collapsible.py  (pytest + offscreen, 42개)
+tests/     test_collapsible.py  (pytest + offscreen, 49개)
 docs/      demo.png
 ```
 
@@ -65,6 +65,10 @@ docs/      demo.png
   속성). `_draw_arrow` 가 분기: `_draw_chevron`(폴리라인, 회전 `-90°*(1-progress)`),
   `_draw_triangle`(채워진 삼각형, 같은 회전), `_draw_plus_minus`(가로선 고정 + 세로선 길이를
   `(1-progress)` 로 모핑 → +↔−). 선 펜은 `_stroke_pen` 공용 헬퍼.
+- **아이콘 크기**: `_arrow_size()` 는 `_arrow_size_override`(있으면) 우선, 없으면 폰트 기준
+  (`fontMetrics*0.62`, 하한 9). `setArrowSize(px|None)` 로 인스턴스별 조절(크기가 들여쓰기·sizeHint
+  에 영향하므로 `_refresh_title`+`updateGeometry`). 전역 기본값은 환경변수 `COLLAPSIBLE_ARROW_SIZE`
+  (`_env_arrow_size()`, 숫자 아니면 무시) — simeditor 의 `$SIMEDITOR_*` 패턴과 동일.
 - **HTML 리치텍스트 제목**: `setTitle` 이 `Qt.mightBeRichText` 로 HTML 여부를 자동 감지한다
   (`_is_rich`). plain 이면 위 네이티브 경로 그대로. rich 이면 네이티브 제목은 자리(들여쓰기
   공백)만 두고, `paintEvent`→`_draw_rich_title` 가 `QTextDocument`(캐시 `_title_doc`,
@@ -124,7 +128,7 @@ docs/      demo.png
 
 - **언어**: 응답·주석·커밋·문서 한국어, 코드 식별자 영어. 들여쓰기 4칸.
 - **테스트**: `tests/`(pytest). 헤드리스: `QT_QPA_PLATFORM=offscreen python3 -m pytest -q`.
-  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 42개 통과 기준** — 변경 시 회귀 추가.
+  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 49개 통과 기준** — 변경 시 회귀 추가.
 - **검증 루틴**: 수정 후 `py_compile` + 전체 pytest 통과 확인.
 - **GUI 확인**: offscreen 으로 `widget.grab().save(png)` 캡처해 검토.
 - **호환성 주의**: 새 Qt enum/메서드 사용 시 Qt5/Qt6 양쪽 동작 확인(필요하면 헬퍼로 흡수).

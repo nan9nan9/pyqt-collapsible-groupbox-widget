@@ -267,6 +267,84 @@ def test_arrow_style_default_and_set(app):
     assert box.arrowStyle() == CollapsibleGroupBox.ArrowPlusMinus
 
 
+def test_arrow_size_set_fixed_and_auto(app):
+    box, _ = _make_box()
+    auto = box.arrowSize()                 # 폰트 기반 자동값
+    box.setArrowSize(24)
+    assert box.arrowSize() == 24           # 고정값
+    box.setArrowSize(None)
+    assert box.arrowSize() == auto         # 자동 모드 복귀
+
+
+def test_arrow_size_affects_indent(app):
+    box, _ = _make_box("제목")
+    box.show()
+    box.setArrowSize(10)
+    small = box._text_advance(box._title_indent())
+    box.setArrowSize(28)
+    large = box._text_advance(box._title_indent())
+    assert large > small                   # 큰 화살표일수록 들여쓰기 폭도 커진다
+
+
+def test_arrow_size_env_default(app, monkeypatch):
+    from collapsible_groupbox.collapsible_group_box import ARROW_SIZE_ENV
+    monkeypatch.setenv(ARROW_SIZE_ENV, "26")
+    box = CollapsibleGroupBox("환경변수")
+    assert box.arrowSize() == 26           # 환경변수가 기본 크기로 적용
+    box.setArrowSize(None)                 # 인스턴스에서 자동으로 되돌릴 수 있음
+    assert box.arrowSize() != 26
+
+
+def test_arrow_size_env_invalid_ignored(app, monkeypatch):
+    from collapsible_groupbox.collapsible_group_box import ARROW_SIZE_ENV
+    monkeypatch.setenv(ARROW_SIZE_ENV, "huge")   # 숫자가 아니면 무시 → 자동
+    box = CollapsibleGroupBox("제목")
+    QVBoxLayout(box).addWidget(QLabel("x"))
+    # 자동값(폰트 기준)과 같아야 한다(예외 없이).
+    assert box.arrowSize() == max(9, int(box.fontMetrics().height() * 0.62))
+
+
+def test_large_arrow_fits_within_header(app):
+    # 폰트보다 큰 아이콘을 줘도 헤더 줄이 함께 커져 화살표가 잘리지 않아야 한다.
+    box, _ = _make_box()
+    box.setArrowSize(34)
+    box.show()
+    app.processEvents()
+    rect = box._arrow_rect()
+    band = box._title_band_height()
+    assert band >= box.arrowSize()          # 헤더 줄이 화살표를 담을 만큼 커짐
+    assert rect.top() >= 0
+    assert rect.bottom() <= band            # 화살표가 헤더 줄 안에 들어감
+
+
+def test_arrow_size_updates_collapsed_height(app):
+    # 접힌 상태에서 아이콘을 키우면 접힌 박스 높이도 따라 갱신되어야 한다(화살표 잘림 방지).
+    box, _ = _make_box()
+    box.show()
+    box.setCollapsed(True)
+    app.processEvents()
+    bare = box.height()
+    box.setArrowSize(34)
+    app.processEvents()
+    assert box.height() == box._header_height()
+    assert box.height() > bare               # 큰 화살표만큼 헤더가 커짐
+    box.setArrowSize(None)
+    app.processEvents()
+    assert box.height() == bare              # 자동 복귀 시 원래 높이로
+
+
+def test_font_change_updates_collapsed_height(app):
+    # 접힌 상태에서 폰트를 키우면 헤더 높이가 늘어나므로 접힌 박스 높이도 갱신되어야 한다.
+    from qtpy.QtGui import QFont
+    box, _ = _make_box()
+    box.show()
+    box.setCollapsed(True)
+    app.processEvents()
+    box.setFont(QFont(box.font().family(), 26))
+    app.processEvents()
+    assert box.height() == box._header_height()
+
+
 def test_invalid_arrow_style_raises(app):
     box, _ = _make_box()
     with pytest.raises(ValueError):
