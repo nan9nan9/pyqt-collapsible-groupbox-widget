@@ -79,11 +79,11 @@ sync.setCollapsed(True)
 | `setTitle(text)` | 일반 텍스트 또는 **HTML**(`<b>`, `<font color>` 등) 지원 |
 | `setSummaryEnabled(bool)` / `isSummaryEnabled()` | **접었을 때** 헤더에 요약 표시 기능 on/off (기본 off) |
 | `setSummary(text)` / `summary()` | 접었을 때 보일 요약 텍스트(HTML 가능) |
-| `setSummaryPosition(pos)` / `summaryPosition()` | 요약 위치: `SummaryBeside`(제목 오른쪽, 기본) / `SummaryInside`(박스 안쪽 줄) |
+| `setSummaryPosition(pos)` / `summaryPosition()` | 요약 표시 모드: `SummaryBeside`(접힘만·제목 오른쪽, 기본) / `SummaryInside`(접힘만·박스 안쪽 줄) / `SummaryAlways`(펼침·접힘 모두·제목 오른쪽) |
 | `summaryLabel()` | 요약 `QLabel` 직접 접근 (색·폰트·스타일시트 커스터마이즈) |
 | `collapsedChanged(bool)` 시그널 | 접힘 상태가 바뀔 때 발생 (True=접힘) |
 
-요약 위치 상수는 `CollapsibleGroupBox.SummaryBeside` / `.SummaryInside` 이다.
+요약 모드 상수는 `CollapsibleGroupBox.SummaryBeside` / `.SummaryInside` / `.SummaryAlways` 이다.
 제목 위치/스타일은 `QGroupBox` 표준 스타일시트(`QGroupBox::title { ... }`)로 조정한다.
 
 ### 환경 변수

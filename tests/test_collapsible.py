@@ -536,6 +536,33 @@ def test_invalid_summary_position_raises(app):
         box.setSummaryPosition("nope")
 
 
+def test_summary_always_visible_when_expanded(app):
+    # SummaryAlways 모드는 펼친 상태에서도 요약을 보인다.
+    box, _ = _make_box()
+    box.setSummaryEnabled(True)
+    box.setSummary("요약")
+    box.setSummaryPosition(CollapsibleGroupBox.SummaryAlways)
+    box.resize(260, 150)
+    box.show()
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is True     # 펼침에도 표시
+    box.setCollapsed(True)
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is True     # 접힘에도 표시
+
+
+def test_summary_beside_hidden_when_expanded(app):
+    # 기본(SummaryBeside)은 접었을 때만 보인다(대조군).
+    box, _ = _make_box()
+    box.setSummaryEnabled(True)
+    box.setSummary("요약")
+    box.setSummaryPosition(CollapsibleGroupBox.SummaryBeside)
+    box.resize(260, 150)
+    box.show()
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is False
+
+
 def test_summary_inside_is_taller_when_collapsed(app):
     def collapsed_height(summary_pos):
         b = CollapsibleGroupBox("제목")

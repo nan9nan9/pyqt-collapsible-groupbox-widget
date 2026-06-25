@@ -43,7 +43,7 @@ src/collapsible_groupbox/
 ├── collapsible_group_box.py  # 위젯 본체 (전체 구현이 이 한 파일)
 └── py.typed
 examples/  basic_example.py, embed_in_your_app.py
-tests/     test_collapsible.py  (pytest + offscreen, 52개)
+tests/     test_collapsible.py  (pytest + offscreen, 54개)
 docs/      demo.png
 ```
 
@@ -90,18 +90,21 @@ docs/      demo.png
   `unsetCursor`(상태는 `_hover_cursor` 로 추적, `setMouseTracking(True)` 필요).
   `setCheckable(True)` 와 공존하도록 체크박스 인디케이터(`SC_GroupBoxCheckBox`) 위 클릭/hover 는
   QGroupBox 의 체크 토글로 양보한다.
-- **요약 라벨(접힘 전용)**: `setSummaryEnabled(bool)`/`setSummary(text)` 로 켜면, 접었을 때
-  `QLabel`(`_summary_label`, 자식)로 요약을 보여준다. 마우스는 `WA_TransparentForMouseEvents`
+- **요약 라벨**: `setSummaryEnabled(bool)`/`setSummary(text)` 로 켜면 `QLabel`(`_summary_label`,
+  자식)로 요약을 보여준다(표시 시점은 아래 "요약 표시 모드"). 마우스는 `WA_TransparentForMouseEvents`
   로 통과시켜 헤더 클릭 토글을 유지하고, 기본색은 팔레트 글자색 alpha 150이며 `summaryLabel()`
   로 커스터마이즈한다. `_content_children()` 에서 제외(접기/펴기 hide 대상 아님).
   `_after_collapse`/`_do_expand`/`resizeEvent`/`showEvent` 에서 `_update_summary_label` 로 갱신,
-  펼침·빈 텍스트·공간 부족(<16px) 이면 숨긴다.
-- **요약 위치 옵션**: `setSummaryPosition(SummaryBeside|SummaryInside)` (상수는 클래스 속성).
-  - `SummaryInside`: 접힌 높이(`_header_height`)에 `_summary_line_height` 를 더하고, 요약을 헤더
-    아래(`y=_title_band_height`, 프레임 안쪽 x)에 배치. `SummaryBeside` 는 제목 오른쪽
-    (`_title_right_edge` 옆, `y=0`).
+  비활성·빈 텍스트·공간 부족(<16px)·표시 조건 미충족이면 숨긴다.
+- **요약 표시 모드**: `setSummaryPosition(SummaryBeside|SummaryInside|SummaryAlways)` (상수는 클래스 속성).
+  - `SummaryBeside`(기본): 접힘일 때만 제목 오른쪽(`_title_right_edge` 옆, 라벨 rect 와 같은 줄).
+  - `SummaryInside`: 접힘일 때만 박스 안쪽(접힌 높이 `_header_height` 에 `_summary_line_height`
+    를 더하고 `y=_title_band_height`, 프레임 안쪽 x).
+  - `SummaryAlways`: 펼침·접힘 모두 제목 오른쪽(콘텐츠를 가리지 않도록 펼침에서도 Beside 위치).
+  - 표시 판정은 `_update_summary_label` 에서 `enabled & text & (collapsed or mode==Always)`.
+    Inside 의 박스안쪽 배치는 `collapsed` 일 때만(펼침이면 Beside 위치로 fallback).
   - 헤더 띠/제목 시작점은 `_title_band()`(네이티브 라벨 rect)·`_title_left()`·`_title_band_height()`
-    로 계산하고 화살표/요약/sizeHint 가 공유한다.
+    로 계산하고 화살표/요약/sizeHint 가 공유한다. 화살표·옆 요약은 라벨 rect 세로 중앙에 맞춘다.
   - **제목 위치 자체는 옵션으로 제공하지 않는다**(과거 TitleAbove 실험은 제거됨). 제목은 네이티브
     QGroupBox 렌더링을 그대로 쓰므로, 위치/스타일은 `QGroupBox::title { ... }` 스타일시트로 조정한다.
 - **애니메이션 수명 관리**: `_start_animation(attr, prop, ...)` 공통 헬퍼가 이전 애니메이션을
@@ -128,7 +131,7 @@ docs/      demo.png
 
 - **언어**: 응답·주석·커밋·문서 한국어, 코드 식별자 영어. 들여쓰기 4칸.
 - **테스트**: `tests/`(pytest). 헤드리스: `QT_QPA_PLATFORM=offscreen python3 -m pytest -q`.
-  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 52개 통과 기준** — 변경 시 회귀 추가.
+  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 54개 통과 기준** — 변경 시 회귀 추가.
 - **검증 루틴**: 수정 후 `py_compile` + 전체 pytest 통과 확인.
 - **GUI 확인**: offscreen 으로 `widget.grab().save(png)` 캡처해 검토.
 - **호환성 주의**: 새 Qt enum/메서드 사용 시 Qt5/Qt6 양쪽 동작 확인(필요하면 헬퍼로 흡수).

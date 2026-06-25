@@ -91,7 +91,7 @@ class CollapsibleGroupBox(QGroupBox):
         - setTitle(text)                          (일반 텍스트 또는 HTML 리치텍스트)
         - setSummaryEnabled(bool) / isSummaryEnabled()  (접었을 때 요약 표시 on/off)
         - setSummary(text) / summary()            (접었을 때 보일 요약, HTML 가능)
-        - setSummaryPosition(pos) / summaryPosition()   (SummaryBeside | SummaryInside)
+        - setSummaryPosition(pos) / summaryPosition()   (SummaryBeside | SummaryInside | SummaryAlways)
         - summaryLabel()                          (요약 QLabel 직접 커스터마이즈)
 
     시그널:
@@ -100,9 +100,10 @@ class CollapsibleGroupBox(QGroupBox):
 
     collapsedChanged = Signal(bool)
 
-    # 요약 위치 옵션
-    SummaryBeside = "beside"  # 제목 오른쪽편에
-    SummaryInside = "inside"  # 접었을 때 박스 안쪽(제목 아래 줄)에
+    # 요약 표시 모드
+    SummaryBeside = "beside"  # 접었을 때만, 제목 오른쪽편에
+    SummaryInside = "inside"  # 접었을 때만, 박스 안쪽(제목 아래 줄)에
+    SummaryAlways = "always"  # 펼침·접힘 모두, 제목 오른쪽편에
 
     # 접기/펴기 아이콘 스타일
     ArrowChevron = "chevron"        # ˅ / › 셰브론 (기본, 회전 애니메이션)
@@ -140,7 +141,7 @@ class CollapsibleGroupBox(QGroupBox):
         self._applying_title = False  # _apply_display_title 재귀 가드
         self._hover_cursor = False    # 헤더 위에서 손가락 커서를 띄웠는지 여부
 
-        # 요약 배치 옵션
+        # 요약 표시 모드
         self._summary_position = self.SummaryBeside
 
         # 접었을 때 헤더에 보여줄 요약 라벨(기본 비활성). 마우스 이벤트는 통과시켜
@@ -376,9 +377,15 @@ class CollapsibleGroupBox(QGroupBox):
         return self._summary_label
 
     def setSummaryPosition(self, position):
-        """요약 위치: SummaryBeside(제목 오른쪽) 또는 SummaryInside(박스 안쪽)."""
-        if position not in (self.SummaryBeside, self.SummaryInside):
-            raise ValueError("position must be SummaryBeside or SummaryInside")
+        """요약 표시 모드를 정한다.
+
+        SummaryBeside(접힘만, 제목 오른쪽) / SummaryInside(접힘만, 박스 안쪽) /
+        SummaryAlways(펼침·접힘 모두, 제목 오른쪽).
+        """
+        if position not in (self.SummaryBeside, self.SummaryInside, self.SummaryAlways):
+            raise ValueError(
+                "position must be SummaryBeside, SummaryInside or SummaryAlways"
+            )
         if position == self._summary_position:
             return
         self._summary_position = position
@@ -408,11 +415,14 @@ class CollapsibleGroupBox(QGroupBox):
     def _update_summary_label(self):
         """요약 라벨의 표시 여부·위치를 현재 상태/옵션에 맞춰 갱신한다."""
         lbl = self._summary_label
-        if not (self._collapsed and self._summary_enabled and lbl.text()):
+        always = self._summary_position == self.SummaryAlways
+        show = (self._summary_enabled and bool(lbl.text())
+                and (self._collapsed or always))
+        if not show:
             lbl.hide()
             return
 
-        if self._summary_position == self.SummaryInside:
+        if self._summary_position == self.SummaryInside and self._collapsed:
             # 접힌 박스 안쪽(제목 줄 아래)에 한 줄로 배치
             m = self.contentsMargins()
             x = m.left() + 6
@@ -420,7 +430,8 @@ class CollapsibleGroupBox(QGroupBox):
             y = self._title_band_height()
             height = self._summary_line_height()
         else:
-            # 제목 오른쪽편에, 제목 텍스트(라벨 rect)와 같은 줄·세로 중앙으로 배치
+            # 제목 오른쪽편에, 제목 텍스트(라벨 rect)와 같은 줄·세로 중앙으로 배치.
+            # (펼친 상태에서는 콘텐츠를 가리지 않도록 항상 이 위치를 쓴다.)
             label = self._subrect(QStyle.SC_GroupBoxLabel)
             x = int(self._title_right_edge() + 10)
             width = self.width() - x - 8

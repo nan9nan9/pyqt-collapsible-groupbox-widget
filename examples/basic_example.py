@@ -64,6 +64,14 @@ def main():
     g_inside.setCollapsed(True)
     outer.addWidget(g_inside)
 
+    # 3-1) 펼침·접힘 모두 제목 오른쪽에 요약 표시 (SummaryAlways)
+    g_always = CollapsibleGroupBox("상태")
+    QVBoxLayout(g_always).addWidget(QCheckBox("실시간 갱신"))
+    g_always.setSummaryEnabled(True)
+    g_always.setSummary("정상 · 3건")
+    g_always.setSummaryPosition(CollapsibleGroupBox.SummaryAlways)  # 펴져 있어도 보임
+    outer.addWidget(g_always)
+
     # 4) 제목을 굵게/색상으로 — 방법 A: HTML 제목(setTitle 에 태그를 넣으면 자동 인식)
     g_html = CollapsibleGroupBox(
         "<b>중요 설정</b> <font color='#e74c3c'>(주의)</font>"
