@@ -86,7 +86,7 @@ class CollapsibleGroupBox(QGroupBox):
         - setAnimated(bool) / isAnimated()
         - setAnimationDuration(int) / animationDuration()
         - setArrowColor(color)                    (화살표 색 지정, None=글자색)
-        - setArrowStyle(style) / arrowStyle()     (ArrowChevron | ArrowTriangle | ArrowPlusMinus)
+        - setArrowStyle(style) / arrowStyle() / arrowStyles()  (ArrowChevron | ArrowTriangle | ArrowPlusMinus)
         - setArrowSize(px) / arrowSize()          (None=폰트 자동, 환경변수 COLLAPSIBLE_ARROW_SIZE)
         - setTitle(text)                          (일반 텍스트 또는 HTML 리치텍스트)
         - setSummaryEnabled(bool) / isSummaryEnabled()  (접었을 때 요약 표시 on/off)
@@ -251,16 +251,18 @@ class CollapsibleGroupBox(QGroupBox):
         self._arrow_color = None if color is None else QColor(color)
         self.update()
 
+    @classmethod
+    def arrowStyles(cls):
+        """선택 가능한 아이콘 스타일 목록(setArrowStyle 검증·노출의 단일 소스)."""
+        return (cls.ArrowChevron, cls.ArrowTriangle, cls.ArrowPlusMinus)
+
     def setArrowStyle(self, style):
-        """접기/펴기 아이콘 모양을 고른다.
+        """접기/펴기 아이콘 모양을 고른다(arrowStyles() 중 하나).
 
         ArrowChevron(˅/›, 기본) / ArrowTriangle(▼/▶) / ArrowPlusMinus(−/+).
         """
-        valid = (self.ArrowChevron, self.ArrowTriangle, self.ArrowPlusMinus)
-        if style not in valid:
-            raise ValueError(
-                "style must be ArrowChevron, ArrowTriangle or ArrowPlusMinus"
-            )
+        if style not in self.arrowStyles():
+            raise ValueError("unknown arrow style: %r" % (style,))
         if style == self._arrow_style:
             return
         self._arrow_style = style

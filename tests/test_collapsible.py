@@ -351,10 +351,17 @@ def test_invalid_arrow_style_raises(app):
         box.setArrowStyle("nope")
 
 
+def test_arrow_styles_list(app):
+    styles = CollapsibleGroupBox.arrowStyles()
+    assert len(styles) == 3 and len(set(styles)) == 3
+    for st in (CollapsibleGroupBox.ArrowChevron,
+               CollapsibleGroupBox.ArrowTriangle,
+               CollapsibleGroupBox.ArrowPlusMinus):
+        assert st in styles
+
+
 def test_all_arrow_styles_paint(app):
-    for style in (CollapsibleGroupBox.ArrowChevron,
-                  CollapsibleGroupBox.ArrowTriangle,
-                  CollapsibleGroupBox.ArrowPlusMinus):
+    for style in CollapsibleGroupBox.arrowStyles():
         box, _ = _make_box()
         box.setArrowStyle(style)
         box.resize(240, 150)
