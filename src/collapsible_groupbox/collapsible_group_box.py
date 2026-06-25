@@ -68,6 +68,7 @@ class CollapsibleGroupBox(QGroupBox):
         - setAnimated(bool) / isAnimated()
         - setAnimationDuration(int) / animationDuration()
         - setArrowColor(color)                    (화살표 색 지정, None=글자색)
+        - setArrowStyle(style) / arrowStyle()     (ArrowChevron | ArrowTriangle | ArrowPlusMinus)
         - setTitle(text)                          (일반 텍스트 또는 HTML 리치텍스트)
         - setSummaryEnabled(bool) / isSummaryEnabled()  (접었을 때 요약 표시 on/off)
         - setSummary(text) / summary()            (접었을 때 보일 요약, HTML 가능)
@@ -84,6 +85,11 @@ class CollapsibleGroupBox(QGroupBox):
     SummaryBeside = "beside"  # 제목 오른쪽편에
     SummaryInside = "inside"  # 접었을 때 박스 안쪽(제목 아래 줄)에
 
+    # 접기/펴기 아이콘 스타일
+    ArrowChevron = "chevron"        # ˅ / › 셰브론 (기본, 회전 애니메이션)
+    ArrowTriangle = "triangle"      # ▼ / ▶ 채워진 삼각형 (회전 애니메이션)
+    ArrowPlusMinus = "plusminus"    # − / + 플러스·마이너스 (세로선 모핑)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -98,9 +104,10 @@ class CollapsibleGroupBox(QGroupBox):
         self._animated = True
         self._duration = 180  # ms
 
-        # 셰브론 화살표 상태: 0.0=접힘(›) ~ 1.0=펼침(˅). 회전 애니메이션에 쓰인다.
+        # 화살표 상태: 0.0=접힘 ~ 1.0=펼침. 회전/모핑 애니메이션에 쓰인다.
         self._arrow_progress = 1.0
         self._arrow_color = None  # None 이면 팔레트(WindowText) 색을 따른다.
+        self._arrow_style = self.ArrowChevron
 
         self._anim = None
         self._arrow_anim = None
@@ -222,6 +229,24 @@ class CollapsibleGroupBox(QGroupBox):
         """
         self._arrow_color = None if color is None else QColor(color)
         self.update()
+
+    def setArrowStyle(self, style):
+        """접기/펴기 아이콘 모양을 고른다.
+
+        ArrowChevron(˅/›, 기본) / ArrowTriangle(▼/▶) / ArrowPlusMinus(−/+).
+        """
+        valid = (self.ArrowChevron, self.ArrowTriangle, self.ArrowPlusMinus)
+        if style not in valid:
+            raise ValueError(
+                "style must be ArrowChevron, ArrowTriangle or ArrowPlusMinus"
+            )
+        if style == self._arrow_style:
+            return
+        self._arrow_style = style
+        self.update()
+
+    def arrowStyle(self):
+        return self._arrow_style
 
     # ------------------------------------------------------------------
     # 접힘 상태 API
@@ -597,20 +622,27 @@ class CollapsibleGroupBox(QGroupBox):
     def _draw_arrow(self, painter):
         rect = self._arrow_rect()
         size = rect.width()
-
-        painter.save()
-        painter.translate(rect.center())
-        # progress 0(접힘)=오른쪽(›), 1(펼침)=아래(˅). ˅ 모양을 반시계로 0~90° 회전.
-        painter.rotate(-90.0 * (1.0 - self._arrow_progress))
-
         color = self._arrow_color if self._arrow_color is not None else self._title_text_color()
+        if self._arrow_style == self.ArrowPlusMinus:
+            self._draw_plus_minus(painter, rect, size, color)
+        elif self._arrow_style == self.ArrowTriangle:
+            self._draw_triangle(painter, rect, size, color)
+        else:
+            self._draw_chevron(painter, rect, size, color)
+
+    def _stroke_pen(self, color, size):
         pen = QPen(color)
         pen.setWidthF(max(1.5, size * 0.16))
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
-        painter.setPen(pen)
+        return pen
 
-        # ˅ 모양 셰브론(중심 기준): 왼쪽 위 → 가운데 아래 → 오른쪽 위
+    def _draw_chevron(self, painter, rect, size, color):
+        painter.save()
+        painter.translate(rect.center())
+        # progress 0(접힘)=오른쪽(›), 1(펼침)=아래(˅). ˅ 모양을 반시계로 0~90° 회전.
+        painter.rotate(-90.0 * (1.0 - self._arrow_progress))
+        painter.setPen(self._stroke_pen(color, size))
         w = size * 0.30
         d = size * 0.16
         painter.drawPolyline(QPolygonF([
@@ -618,6 +650,33 @@ class CollapsibleGroupBox(QGroupBox):
             QPointF(0.0, d),
             QPointF(w, -d),
         ]))
+        painter.restore()
+
+    def _draw_triangle(self, painter, rect, size, color):
+        painter.save()
+        painter.translate(rect.center())
+        # progress 1(펼침)=▼, 0(접힘)=▶ — ▼ 모양을 반시계로 0~90° 회전.
+        painter.rotate(-90.0 * (1.0 - self._arrow_progress))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        w = size * 0.32
+        painter.drawPolygon(QPolygonF([
+            QPointF(-w, -w * 0.55),
+            QPointF(w, -w * 0.55),
+            QPointF(0.0, w * 0.72),
+        ]))
+        painter.restore()
+
+    def _draw_plus_minus(self, painter, rect, size, color):
+        painter.save()
+        painter.translate(rect.center())
+        painter.setPen(self._stroke_pen(color, size))
+        a = size * 0.32  # 선 반 길이
+        painter.drawLine(QPointF(-a, 0.0), QPointF(a, 0.0))  # 가로선은 항상
+        # 세로선은 접힘(progress 0, +)에서 가장 길고 펼침(1, −)에서 사라진다.
+        v = a * (1.0 - self._arrow_progress)
+        if v > 0.5:
+            painter.drawLine(QPointF(0.0, -v), QPointF(0.0, v))
         painter.restore()
 
     def _draw_rich_title(self, painter, band):

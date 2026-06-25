@@ -258,6 +258,36 @@ def test_animations_do_not_leak(app):
     assert len(box.findChildren(QPropertyAnimation)) == 0
 
 
+def test_arrow_style_default_and_set(app):
+    box, _ = _make_box()
+    assert box.arrowStyle() == CollapsibleGroupBox.ArrowChevron
+    box.setArrowStyle(CollapsibleGroupBox.ArrowTriangle)
+    assert box.arrowStyle() == CollapsibleGroupBox.ArrowTriangle
+    box.setArrowStyle(CollapsibleGroupBox.ArrowPlusMinus)
+    assert box.arrowStyle() == CollapsibleGroupBox.ArrowPlusMinus
+
+
+def test_invalid_arrow_style_raises(app):
+    box, _ = _make_box()
+    with pytest.raises(ValueError):
+        box.setArrowStyle("nope")
+
+
+def test_all_arrow_styles_paint(app):
+    for style in (CollapsibleGroupBox.ArrowChevron,
+                  CollapsibleGroupBox.ArrowTriangle,
+                  CollapsibleGroupBox.ArrowPlusMinus):
+        box, _ = _make_box()
+        box.setArrowStyle(style)
+        box.resize(240, 150)
+        box.show()
+        app.processEvents()
+        assert not box.grab().isNull()        # 펼침 상태 페인트
+        box.setCollapsed(True)
+        app.processEvents()
+        assert not box.grab().isNull()        # 접힘 상태 페인트
+
+
 def test_arrow_color_accepts_string_and_none(app):
     from qtpy.QtGui import QColor
     box, _ = _make_box()

@@ -79,7 +79,18 @@ def main():
     QVBoxLayout(g_qss).addWidget(QCheckBox("공개 프로필"))
     outer.addWidget(g_qss)
 
-    # 6) 애니메이션을 끈 그룹 + 외부 토글 버튼
+    # 6) 접기/펴기 아이콘 모양 바꾸기 (셰브론 / 삼각형 / 플러스·마이너스)
+    g_tri = CollapsibleGroupBox("삼각형 아이콘")
+    g_tri.setArrowStyle(CollapsibleGroupBox.ArrowTriangle)
+    QVBoxLayout(g_tri).addWidget(QCheckBox("옵션"))
+    outer.addWidget(g_tri)
+
+    g_pm = CollapsibleGroupBox("플러스·마이너스 아이콘")
+    g_pm.setArrowStyle(CollapsibleGroupBox.ArrowPlusMinus)
+    QVBoxLayout(g_pm).addWidget(QCheckBox("옵션"))
+    outer.addWidget(g_pm)
+
+    # 7) 애니메이션을 끈 그룹 + 외부 토글 버튼
     g3 = CollapsibleGroupBox("애니메이션 없음")
     g3.setAnimated(False)
     f3 = QVBoxLayout(g3)
@@ -91,7 +102,7 @@ def main():
     outer.addWidget(toggle_btn)
 
     outer.addStretch(1)
-    root.resize(380, 640)
+    root.resize(380, 720)
     root.show()
     sys.exit(app.exec_())
 

@@ -4,8 +4,8 @@
 기존 `QGroupBox` 와 API 가 호환되며, 추가되는 것은 **접기/펴기 기능 하나**뿐이다.
 
 - 접으면 제목 줄만 남고 내부 콘텐츠는 모두 감춰진다.
-- 제목 앞에 셰브론 화살표를 직접 그려(안티앨리어싱) 상태를 보여준다.
-  펼치면 아래(˅), 접으면 오른쪽(›)으로 부드럽게 **회전**한다.
+- 제목 앞에 접기/펴기 아이콘을 직접 그려(안티앨리어싱) 상태를 보여준다.
+  기본은 셰브론(펼침 ˅ / 접힘 ›)이며 삼각형·플러스마이너스로도 바꿀 수 있다(`setArrowStyle`).
 - 제목 영역을 클릭하면 토글된다(별도 버튼 불필요).
 - 펼침/접힘은 부드러운 애니메이션으로 처리된다(끌 수 있음).
 - **qtpy** 추상화로 **PyQt5 / PyQt6 / PySide2 / PySide6** 모두에서 동작한다.
@@ -74,6 +74,7 @@ sync.setCollapsed(True)
 | `setAnimated(bool)` / `isAnimated()` | 애니메이션 사용 여부 (기본 True) |
 | `setAnimationDuration(ms)` / `animationDuration()` | 애니메이션 길이 (기본 180ms) |
 | `setArrowColor(color)` | 화살표 색 지정 (`QColor`/`"red"`/`"#3498db"`, `None`=글자색) |
+| `setArrowStyle(style)` / `arrowStyle()` | 아이콘 모양: `ArrowChevron`(˅/›, 기본) / `ArrowTriangle`(▼/▶) / `ArrowPlusMinus`(−/+) |
 | `setTitle(text)` | 일반 텍스트 또는 **HTML**(`<b>`, `<font color>` 등) 지원 |
 | `setSummaryEnabled(bool)` / `isSummaryEnabled()` | **접었을 때** 헤더에 요약 표시 기능 on/off (기본 off) |
 | `setSummary(text)` / `summary()` | 접었을 때 보일 요약 텍스트(HTML 가능) |
