@@ -68,6 +68,11 @@ class CollapsibleGroupBox(QGroupBox):
         - setAnimated(bool) / isAnimated()
         - setAnimationDuration(int) / animationDuration()
         - setArrowColor(color)                    (화살표 색 지정, None=글자색)
+        - setTitle(text)                          (일반 텍스트 또는 HTML 리치텍스트)
+        - setSummaryEnabled(bool) / isSummaryEnabled()  (접었을 때 요약 표시 on/off)
+        - setSummary(text) / summary()            (접었을 때 보일 요약, HTML 가능)
+        - setSummaryPosition(pos) / summaryPosition()   (SummaryBeside | SummaryInside)
+        - summaryLabel()                          (요약 QLabel 직접 커스터마이즈)
 
     시그널:
         - collapsedChanged(bool): 접힘 상태가 바뀔 때 발생(True=접힘).
@@ -288,6 +293,7 @@ class CollapsibleGroupBox(QGroupBox):
     def setSummaryEnabled(self, enabled):
         """접었을 때 요약을 보여주는 기능을 켜고 끈다(기본 꺼짐)."""
         self._summary_enabled = bool(enabled)
+        self._refresh_collapsed_height()
         self._update_summary_label()
 
     def isSummaryEnabled(self):
@@ -296,6 +302,7 @@ class CollapsibleGroupBox(QGroupBox):
     def setSummary(self, text):
         """접었을 때 헤더에 표시할 요약 텍스트를 설정한다(HTML 도 가능)."""
         self._summary_label.setText(text or "")
+        self._refresh_collapsed_height()
         self._update_summary_label()
 
     def summary(self):
@@ -312,14 +319,21 @@ class CollapsibleGroupBox(QGroupBox):
         if position == self._summary_position:
             return
         self._summary_position = position
-        # 접힌 상태에서 위치를 바꾸면 접힌 높이도 달라지므로 다시 고정한다.
-        if self._collapsed:
-            self._stop_anim()
-            self._set_box_height(self._header_height())
+        self._refresh_collapsed_height()
         self._update_summary_label()
 
     def summaryPosition(self):
         return self._summary_position
+
+    def _refresh_collapsed_height(self):
+        """접힌 상태에서 요약 옵션이 바뀌어 헤더 높이가 달라졌을 때 다시 고정한다.
+
+        (SummaryInside 는 접힌 높이에 요약 줄을 더하므로, 요약을 켜거나 텍스트를
+        넣고 빼면 접힌 박스 높이도 따라 바뀌어야 한다.)
+        """
+        if self._collapsed:
+            self._stop_anim()
+            self._set_box_height(self._header_height())
 
     def _title_right_edge(self):
         """헤더에서 제목 텍스트가 끝나는 x 좌표(요약을 그 옆에 붙이기 위함)."""

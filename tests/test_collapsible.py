@@ -414,6 +414,31 @@ def test_summary_inside_is_taller_when_collapsed(app):
     assert inside > beside  # Inside 는 제목 줄 + 요약 줄이라 더 높다
 
 
+def test_summary_inside_height_updates_after_collapse(app):
+    # 접힌 뒤에 요약을 켜거나 텍스트를 넣고 빼도 접힌 박스 높이가 따라 갱신되어야 한다.
+    box = CollapsibleGroupBox("동기화")
+    QVBoxLayout(box).addWidget(QLabel("x"))
+    box.setAnimated(False)
+    box.setSummaryPosition(CollapsibleGroupBox.SummaryInside)
+    box.resize(240, 160)
+    box.show()
+    box.setCollapsed(True)
+    app.processEvents()
+    bare = box.height()
+
+    box.setSummaryEnabled(True)
+    box.setSummary("요약 텍스트")
+    app.processEvents()
+    assert box.height() == box._header_height()
+    assert box.height() > bare                       # 요약 줄만큼 커짐
+    # 요약 라벨이 박스 안에 들어가야 한다(밖으로 잘리지 않음).
+    assert box.summaryLabel().geometry().bottom() <= box.height()
+
+    box.setSummary("")
+    app.processEvents()
+    assert box.height() == bare                       # 요약 비우면 원래 높이로 복귀
+
+
 def test_summary_position_combos_paint(app):
     for sp in (CollapsibleGroupBox.SummaryBeside, CollapsibleGroupBox.SummaryInside):
         box = CollapsibleGroupBox("제목")
