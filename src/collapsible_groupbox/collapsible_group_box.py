@@ -16,9 +16,9 @@
 from __future__ import annotations
 
 from qtpy.QtCore import (
-    Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QRectF, QPointF,
+    Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QRectF, QPointF, QSize, QEvent,
 )
-from qtpy.QtGui import QPainter, QPen, QPolygonF, QPalette
+from qtpy.QtGui import QPainter, QPen, QPolygonF, QPalette, QColor, QTextDocument
 from qtpy.QtWidgets import (
     QGroupBox,
     QWidget,
@@ -39,6 +39,12 @@ def _event_point(event):
     if pos_fn is not None:
         return pos_fn().toPoint()
     return event.pos()
+
+
+def _might_be_rich(text):
+    """제목 문자열이 HTML 리치텍스트로 보이는지 판정한다(plain 이면 기존 경로 유지)."""
+    fn = getattr(Qt, "mightBeRichText", None)
+    return bool(fn(text)) if fn is not None else ("<" in text and ">" in text)
 
 
 class CollapsibleGroupBox(QGroupBox):
@@ -72,6 +78,9 @@ class CollapsibleGroupBox(QGroupBox):
 
         # 생성자에 전달된 타이틀(C++ 경로로 설정되어 우리 setTitle 을 거치지 않음)을 회수한다.
         self._title = super().title()
+        # 제목이 HTML 이면 QTextDocument 로 직접 그린다(_title_doc 캐시).
+        self._is_rich = bool(self._title) and _might_be_rich(self._title)
+        self._title_doc = None
 
         self._collapsed = False
         self._collapsible = True
@@ -87,41 +96,103 @@ class CollapsibleGroupBox(QGroupBox):
         self._saved_min = self.minimumHeight()
         self._hidden_children = []
 
-        self.setCursor(Qt.PointingHandCursor)
+        # 제목 끝 글자가 라벨 영역에 빠듯하게 걸려 잘리지 않도록 두는 우측 여백(px).
+        self._title_right_pad = 6
+        self._applying_title = False  # _apply_display_title 재귀 가드
+        self._hover_cursor = False    # 헤더 위에서 손가락 커서를 띄웠는지 여부
+
+        # 버튼을 누르지 않아도 헤더 위 hover 를 감지하려면 마우스 트래킹이 필요하다.
+        self.setMouseTracking(True)
         self._refresh_title()
 
     # ------------------------------------------------------------------
     # 타이틀: 화살표 자리를 비워 두되 title()/setTitle() API 는 깔끔하게 유지
     # ------------------------------------------------------------------
     def setTitle(self, text):
-        """타이틀을 설정한다(QGroupBox.setTitle 오버라이드)."""
+        """타이틀을 설정한다(QGroupBox.setTitle 오버라이드).
+
+        HTML(예: ``"<b>설정</b> <font color='#e67e22'>●</font>"``)을 주면 리치텍스트로
+        렌더링한다. 일반 문자열이면 기존처럼 네이티브 렌더링/말줄임을 그대로 쓴다.
+        """
         self._title = text or ""
+        self._is_rich = bool(self._title) and _might_be_rich(self._title)
+        self._title_doc = None  # 문서 캐시 무효화
         self._refresh_title()
 
     def title(self):
-        """사용자가 설정한 순수 타이틀을 반환한다(화살표 들여쓰기 제외)."""
+        """사용자가 설정한 타이틀 원본을 반환한다(HTML 이면 HTML 그대로)."""
         return self._title
 
+    def _title_document(self):
+        """리치텍스트 제목을 그릴 QTextDocument(캐시)."""
+        if self._title_doc is None:
+            doc = QTextDocument()
+            doc.setDocumentMargin(0)
+            doc.setDefaultFont(self.font())
+            doc.setHtml(self._title)
+            self._title_doc = doc
+        return self._title_doc
+
     def _refresh_title(self):
-        # 화살표는 paintEvent 가 직접 그린다. 텍스트 앞에 공백을 넣어 그릴 자리만 비운다.
-        super().setTitle(self._title_indent() + self._title)
+        self._apply_display_title()
+
+    def _apply_display_title(self):
+        """표시용 제목을 갱신한다.
+
+        - 화살표는 paintEvent 가 직접 그리므로, 텍스트 앞에 공백 들여쓰기를 넣어 자리만 비운다.
+        - 현재 폭에서 제목이 라벨 영역을 넘으면 하드 클립 대신 말줄임(…)으로 줄인다.
+          (전체 폭은 sizeHint/minimumSizeHint 가 별도로 보장하므로 줄어듦 피드백은 없다.)
+        """
+        if self._applying_title:
+            return
+        self._applying_title = True
+        try:
+            indent = self._title_indent()
+            if self._is_rich:
+                # 리치텍스트는 paintEvent 가 직접 그린다. 네이티브 제목은 상단 여백과
+                # 라벨 위치를 잡기 위한 자리(들여쓰기 공백)만 둔다.
+                if QGroupBox.title(self) != indent:
+                    super().setTitle(indent)
+                return
+
+            fm = self.fontMetrics()
+            # 라벨 시작 x 를 알기 위해 일단 전체 제목으로 세팅해 측정한다.
+            full = indent + self._title
+            if QGroupBox.title(self) != full:
+                super().setTitle(full)
+
+            w = self.width()
+            if w <= 1 or not self._title:
+                return  # 아직 크기 미정이거나 빈 제목이면 전체 표시
+
+            label_x = self._subrect(QStyle.SC_GroupBoxLabel).left()
+            indent_px = self._text_advance(indent)
+            avail = int(w - label_x - indent_px - self._title_right_pad)
+            elided = fm.elidedText(self._title, Qt.ElideRight, max(0, avail))
+            disp = indent + elided
+            if QGroupBox.title(self) != disp:
+                super().setTitle(disp)
+        finally:
+            self._applying_title = False
+
+    def _text_advance(self, text):
+        fm = self.fontMetrics()
+        fn = getattr(fm, "horizontalAdvance", None)
+        return float(fn(text)) if fn is not None else float(fm.width(text))
 
     def _title_indent(self):
         if not self._collapsible:
             return ""
         need = self._arrow_size() + 8  # 화살표 폭 + 좌우 여백(px)
-        space_w = max(1.0, self._space_advance())
+        space_w = max(1.0, self._text_advance(" "))
         return " " * (int(need / space_w) + 1)
 
-    def _space_advance(self):
-        # 공백 한 칸의 픽셀 폭(Qt6: horizontalAdvance, Qt5: width).
-        fm = self.fontMetrics()
-        fn = getattr(fm, "horizontalAdvance", None)
-        return float(fn(" ")) if fn is not None else float(fm.width(" "))
-
     def setArrowColor(self, color):
-        """화살표 색을 지정한다(None 이면 위젯 글자색을 따른다)."""
-        self._arrow_color = color
+        """화살표 색을 지정한다(None 이면 위젯 글자색을 따른다).
+
+        QColor 또는 색 문자열("red", "#3498db" 등)을 받는다.
+        """
+        self._arrow_color = None if color is None else QColor(color)
         self.update()
 
     # ------------------------------------------------------------------
@@ -169,7 +240,8 @@ class CollapsibleGroupBox(QGroupBox):
         self._collapsible = collapsible
         if not collapsible and self._collapsed:
             self.setCollapsed(False)
-        self.setCursor(Qt.PointingHandCursor if collapsible else Qt.ArrowCursor)
+        if not collapsible:
+            self._clear_hover_cursor()  # 손가락 커서 원복
         self._refresh_title()  # 화살표 자리(들여쓰기) 갱신
         self.update()
 
@@ -250,20 +322,40 @@ class CollapsibleGroupBox(QGroupBox):
 
     boxHeight = Property(int, _get_box_height, _set_box_height)
 
-    def _animate(self, start, end, on_finish):
-        anim = QPropertyAnimation(self, b"boxHeight", self)
+    def _start_animation(self, attr, prop, start, end, on_finish=None):
+        """`attr` 슬롯의 이전 애니메이션을 정리하고 새 애니메이션을 시작한다.
+
+        QPropertyAnimation 은 parent=self 로 만들어지므로, 정리하지 않으면 토글할
+        때마다 self 의 자식으로 쌓여 메모리가 샌다. 중단·종료 양쪽에서 deleteLater 로 수거한다.
+        """
+        old = getattr(self, attr)
+        if old is not None:
+            old.stop()
+            old.deleteLater()
+        anim = QPropertyAnimation(self, prop, self)
         anim.setDuration(self._duration)
-        anim.setStartValue(int(start))
-        anim.setEndValue(int(end))
+        anim.setStartValue(start)
+        anim.setEndValue(end)
         anim.setEasingCurve(QEasingCurve.InOutCubic)
-        if on_finish is not None:
-            anim.finished.connect(on_finish)
-        self._anim = anim
+
+        def _done():
+            if on_finish is not None:
+                on_finish()
+            if getattr(self, attr) is anim:
+                setattr(self, attr, None)
+            anim.deleteLater()
+
+        anim.finished.connect(_done)
+        setattr(self, attr, anim)
         anim.start()
+
+    def _animate(self, start, end, on_finish):
+        self._start_animation("_anim", b"boxHeight", int(start), int(end), on_finish)
 
     def _stop_anim(self):
         if self._anim is not None:
             self._anim.stop()
+            self._anim.deleteLater()
             self._anim = None
 
     # ------------------------------------------------------------------
@@ -278,20 +370,20 @@ class CollapsibleGroupBox(QGroupBox):
 
     arrowProgress = Property(float, _get_arrow_progress, _set_arrow_progress)
 
-    def _animate_arrow(self, target):
+    def _stop_arrow_anim(self):
         if self._arrow_anim is not None:
             self._arrow_anim.stop()
+            self._arrow_anim.deleteLater()
             self._arrow_anim = None
+
+    def _animate_arrow(self, target):
         if not self._animated or not self.isVisible():
+            self._stop_arrow_anim()
             self._set_arrow_progress(target)
             return
-        anim = QPropertyAnimation(self, b"arrowProgress", self)
-        anim.setDuration(self._duration)
-        anim.setStartValue(float(self._arrow_progress))
-        anim.setEndValue(float(target))
-        anim.setEasingCurve(QEasingCurve.InOutCubic)
-        self._arrow_anim = anim
-        anim.start()
+        self._start_animation(
+            "_arrow_anim", b"arrowProgress", float(self._arrow_progress), float(target)
+        )
 
     # ------------------------------------------------------------------
     # 헤더(타이틀 줄) 영역 계산 / 클릭 판정
@@ -315,8 +407,11 @@ class CollapsibleGroupBox(QGroupBox):
         return max(h, self.fontMetrics().height() + 6)
 
     def _header_hit(self, pos):
-        """주어진 위치가 타이틀(접기 토글) 영역 안인지 판정한다."""
-        return self._subrect(QStyle.SC_GroupBoxLabel).contains(pos)
+        """주어진 위치가 제목 줄(접기 토글) 영역 안인지 판정한다.
+
+        라벨(글자) 부분뿐 아니라 제목 줄 높이 범위의 가로 전체를 헤더로 본다.
+        """
+        return 0 <= pos.y() <= self._header_height()
 
     def _checkbox_hit(self, pos):
         """체크 가능 그룹박스의 체크박스 인디케이터 위인지 판정한다."""
@@ -339,23 +434,34 @@ class CollapsibleGroupBox(QGroupBox):
         cy = label.center().y() + 1.0
         return QRectF(cx - size / 2.0, cy - size / 2.0, size, size)
 
+    def _title_text_color(self):
+        # 비활성화면 제목/화살표가 함께 흐려지도록 color group 을 맞춘다.
+        group = QPalette.Normal if self.isEnabled() else QPalette.Disabled
+        return self.palette().color(group, QPalette.WindowText)
+
     def paintEvent(self, event):
         super().paintEvent(event)
-        if not self._collapsible:
+        if not self._collapsible and not self._is_rich:
             return
-
-        rect = self._arrow_rect()
-        size = rect.width()
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
+        if self._is_rich:
+            self._draw_rich_title(painter)
+        if self._collapsible:
+            self._draw_arrow(painter)
+        painter.end()
+
+    def _draw_arrow(self, painter):
+        rect = self._arrow_rect()
+        size = rect.width()
+
+        painter.save()
         painter.translate(rect.center())
         # progress 0(접힘)=오른쪽(›), 1(펼침)=아래(˅). ˅ 모양을 반시계로 0~90° 회전.
         painter.rotate(-90.0 * (1.0 - self._arrow_progress))
 
-        color = self._arrow_color
-        if color is None:
-            color = self.palette().color(QPalette.WindowText)
+        color = self._arrow_color if self._arrow_color is not None else self._title_text_color()
         pen = QPen(color)
         pen.setWidthF(max(1.5, size * 0.16))
         pen.setCapStyle(Qt.RoundCap)
@@ -370,11 +476,82 @@ class CollapsibleGroupBox(QGroupBox):
             QPointF(0.0, d),
             QPointF(w, -d),
         ]))
-        painter.end()
+        painter.restore()
+
+    def _draw_rich_title(self, painter):
+        """HTML 제목을 QTextDocument 로 라벨 위치에 직접 그린다."""
+        doc = self._title_document()
+        label = self._subrect(QStyle.SC_GroupBoxLabel)
+        indent_px = self._text_advance(self._title_indent())
+        x = label.left() + indent_px
+        doc_size = doc.size()
+        y = label.center().y() - doc_size.height() / 2.0
+
+        # 네이티브가 그린 자리(공백)·프레임 선 잔상을 지우고 그 위에 리치텍스트를 얹는다.
+        bg = self.palette().color(QPalette.Window)
+        painter.fillRect(
+            QRectF(x, label.top(), doc_size.width() + 2.0, label.height()), bg
+        )
+
+        painter.save()
+        painter.translate(x, y)
+        painter.setPen(self._title_text_color())  # HTML 에서 색 미지정 부분의 기본색
+        doc.drawContents(painter)
+        painter.restore()
+
+    # ------------------------------------------------------------------
+    # 크기 힌트: 표시 제목이 말줄임되어도 "전체 제목 + 우측 여백" 폭을 보장한다.
+    # (이 덕분에 레이아웃이 폭을 줄여 제목을 잘리게 만들지 않고, 끝 글자 잘림도 막는다.)
+    # ------------------------------------------------------------------
+    def _expand_hint_width(self, base):
+        if self._is_rich:
+            # 네이티브 제목은 공백뿐이라 base 가 리치텍스트 폭을 모른다. 직접 보장한다.
+            label_left = self._subrect(QStyle.SC_GroupBoxLabel).left()
+            indent_px = self._text_advance(self._title_indent())
+            need = int(label_left + indent_px + self._title_document().idealWidth()
+                       + self._title_right_pad)
+            return QSize(max(base.width(), need), base.height())
+        # base 는 현재(말줄임됐을 수도 있는) 표시 제목 기준이므로, 줄어든 폭을 되돌려 더해 준다.
+        full = self._title_indent() + self._title
+        shown = QGroupBox.title(self)
+        extra = self._text_advance(full) - self._text_advance(shown)
+        pad = int(max(0.0, extra)) + self._title_right_pad
+        return QSize(base.width() + pad, base.height())
+
+    def sizeHint(self):
+        return self._expand_hint_width(super().sizeHint())
+
+    def minimumSizeHint(self):
+        return self._expand_hint_width(super().minimumSizeHint())
 
     # ------------------------------------------------------------------
     # 이벤트
     # ------------------------------------------------------------------
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # 폭이 바뀐 경우에만 말줄임을 다시 계산한다. (접기/펴기 애니메이션은 높이만
+        # 바꾸므로, 폭 불변 시 재계산을 건너뛰어 매 프레임 setTitle 왕복을 막는다.)
+        if event.oldSize().width() != event.size().width():
+            self._apply_display_title()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._apply_display_title()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        # super().__init__() 도중(폰트/스타일 적용 시)에도 불릴 수 있으므로,
+        # 인스턴스 속성이 아직 준비되지 않았으면 건너뛴다.
+        if not hasattr(self, "_applying_title"):
+            return
+        # 폰트/스타일이 바뀌면 들여쓰기 폭·화살표 크기·라벨 위치가 달라지므로 다시 계산한다.
+        if event.type() in (QEvent.FontChange, QEvent.StyleChange):
+            self._title_doc = None  # 폰트 바뀌면 리치텍스트 문서도 다시 만든다.
+            self._refresh_title()
+            self.update()
+        elif event.type() == QEvent.EnabledChange:
+            self.update()  # 화살표 색을 활성/비활성에 맞춰 다시 그린다.
+
     def mousePressEvent(self, event):
         if self._collapsible and event.button() == Qt.LeftButton:
             pos = _event_point(event)
@@ -384,6 +561,34 @@ class CollapsibleGroupBox(QGroupBox):
                 event.accept()
                 return
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        # 제목 줄 위에 마우스가 있으면 손가락 커서로, 벗어나면 기본 커서로 바꾼다.
+        pos = _event_point(event)
+        on_header = (
+            self._collapsible
+            and self._header_hit(pos)
+            and not self._checkbox_hit(pos)
+        )
+        if on_header:
+            self._set_hover_cursor()
+        else:
+            self._clear_hover_cursor()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self._clear_hover_cursor()
+        super().leaveEvent(event)
+
+    def _set_hover_cursor(self):
+        if not self._hover_cursor:
+            self.setCursor(Qt.PointingHandCursor)
+            self._hover_cursor = True
+
+    def _clear_hover_cursor(self):
+        if self._hover_cursor:
+            self.unsetCursor()
+            self._hover_cursor = False
 
     # Qt Designer / 스타일시트에서 쓸 수 있는 프로퍼티
     collapsed = Property(bool, isCollapsed, setCollapsed)

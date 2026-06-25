@@ -1,0 +1,28 @@
+# Python 캐시/바이트코드
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 빌드/배포 산출물
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# 테스트/도구 캐시
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 가상환경
+.venv/
+venv/
+env/
+
+# 에디터/OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

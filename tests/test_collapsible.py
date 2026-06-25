@@ -138,6 +138,50 @@ def test_header_click_toggles(app):
     assert box.isCollapsed() is True
 
 
+def test_header_click_outside_label_toggles(app):
+    # 라벨(글자) 바깥, 제목 줄 오른쪽 빈 영역을 클릭해도 토글되어야 한다.
+    from qtpy.QtCore import QPoint
+    box, _ = _make_box()
+    box.resize(240, 160)
+    box.show()
+    hh = box._header_height()
+    pt = QPoint(box.width() - 12, hh // 2)  # 제목 줄 우측 끝
+    assert box._header_hit(pt) is True
+    press = QMouseEvent(QMouseEvent.MouseButtonPress, pt, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+    QApplication.sendEvent(box, press)
+    assert box.isCollapsed() is True
+
+
+def test_content_click_does_not_toggle(app):
+    # 콘텐츠 영역(헤더 줄 아래) 클릭은 토글하지 않아야 한다.
+    from qtpy.QtCore import QPoint
+    box, _ = _make_box()
+    box.resize(240, 160)
+    box.show()
+    pt = QPoint(box.width() // 2, box._header_height() + 40)
+    assert box._header_hit(pt) is False
+    press = QMouseEvent(QMouseEvent.MouseButtonPress, pt, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+    QApplication.sendEvent(box, press)
+    assert box.isCollapsed() is False
+
+
+def test_hover_cursor_on_header_only(app):
+    from qtpy.QtCore import QPoint
+    box, _ = _make_box()
+    box.resize(240, 160)
+    box.show()
+    hh = box._header_height()
+
+    def move(x, y):
+        ev = QMouseEvent(QMouseEvent.MouseMove, QPoint(x, y), Qt.NoButton, Qt.NoButton, Qt.NoModifier)
+        QApplication.sendEvent(box, ev)
+
+    move(box.width() - 12, hh // 2)  # 헤더 위
+    assert box.cursor().shape() == Qt.PointingHandCursor
+    move(box.width() // 2, hh + 40)  # 콘텐츠 위
+    assert box.cursor().shape() == Qt.ArrowCursor
+
+
 def test_arrow_progress_follows_state(app):
     # 화살표 회전 진행도: 펼침=1.0, 접힘=0.0 (애니메이션 끈 상태에서 즉시 반영).
     box, _ = _make_box("X")
@@ -156,6 +200,129 @@ def test_title_has_arrow_indent(app):
     shown = QGroupBox.title(box)
     assert shown.endswith("제목") and shown != "제목"
     assert box.title() == "제목"  # 순수 제목은 그대로
+
+
+def test_minimum_size_hint_fits_full_title(app):
+    # 최소 너비 힌트는 (화살표 들여쓰기 + 전체 제목 + 우측 여백)을 모두 담아야 잘리지 않는다.
+    long_title = "아주 길고 긴 그룹 제목입니다 끝까지 보여야 함 ABCg"
+    box = CollapsibleGroupBox(long_title)
+    QVBoxLayout(box).addWidget(QLabel("x"))
+    box.setAnimated(False)
+    box.show()
+    fm = box.fontMetrics()
+    adv = getattr(fm, "horizontalAdvance", fm.width)
+    full_w = adv(box._title_indent() + long_title)
+    assert box.minimumSizeHint().width() >= full_w
+
+
+def test_long_title_elides_when_narrow(app):
+    from qtpy.QtWidgets import QGroupBox
+    long_title = "아주 길고 긴 그룹 제목입니다 끝까지 보여야 함 ABCg"
+    box = CollapsibleGroupBox(long_title)
+    QVBoxLayout(box).addWidget(QLabel("x"))
+    box.setAnimated(False)
+    box.show()
+    box.resize(140, 90)
+    app.processEvents()
+    shown = QGroupBox.title(box)
+    assert "…" in shown          # 좁으면 말줄임
+    assert box.title() == long_title  # 순수 제목은 보존
+
+
+def test_resize_does_not_corrupt_pure_title(app):
+    long_title = "끝 글자 확인용 제목 ABCg"
+    box = CollapsibleGroupBox(long_title)
+    QVBoxLayout(box).addWidget(QLabel("x"))
+    box.setAnimated(False)
+    box.show()
+    for w in (300, 200, 130, 250, 400):
+        box.resize(w, 90)
+        app.processEvents()
+        assert box.title() == long_title  # 폭을 아무리 바꿔도 순수 제목은 불변
+
+
+def test_animations_do_not_leak(app):
+    # 토글을 반복해도 QPropertyAnimation 객체가 위젯에 무한히 쌓이지 않아야 한다.
+    from qtpy.QtCore import QPropertyAnimation, QEventLoop, QTimer
+    box, _ = _make_box()
+    box.setAnimated(True)
+    box.resize(200, 150)
+    box.show()
+    for _ in range(15):
+        box.toggleCollapsed()
+        app.processEvents()
+    # 진행 중인 애니메이션이 끝나고 deleteLater 가 처리되도록 잠시 이벤트 루프를 돌린다.
+    loop = QEventLoop()
+    QTimer.singleShot(500, loop.quit)
+    loop.exec_()
+    assert len(box.findChildren(QPropertyAnimation)) == 0
+
+
+def test_arrow_color_accepts_string_and_none(app):
+    from qtpy.QtGui import QColor
+    box, _ = _make_box()
+    box.setArrowColor("red")
+    assert isinstance(box._arrow_color, QColor)
+    assert box._arrow_color.name() == "#ff0000"
+    box.setArrowColor(None)
+    assert box._arrow_color is None
+
+
+def test_font_change_updates_indent(app):
+    from qtpy.QtGui import QFont
+    box, _ = _make_box("제목")
+    box.show()
+    indent_small = box._title_indent()
+    box.setFont(QFont(box.font().family(), 28))
+    app.processEvents()
+    # 폰트가 커지면 화살표 자리 들여쓰기의 픽셀 폭도 갱신되어야 한다(공백 폭 기준 재계산).
+    fm = box.fontMetrics()
+    adv = getattr(fm, "horizontalAdvance", fm.width)
+    assert adv(box._title_indent()) >= box._arrow_size()
+    assert indent_small is not None  # 단순 존재 확인
+
+
+def test_html_title_detected_as_rich(app):
+    box, _ = _make_box()
+    box.setTitle("<b>설정</b> <font color='#e67e22'>●</font> 고급")
+    assert box._is_rich is True
+    assert box.title() == "<b>설정</b> <font color='#e67e22'>●</font> 고급"  # 원본 보존
+
+
+def test_plain_title_not_rich(app):
+    box, _ = _make_box()
+    box.setTitle("그냥 제목")
+    assert box._is_rich is False
+
+
+def test_html_title_paints_without_error(app):
+    box, _ = _make_box()
+    box.setTitle("<b>굵게</b> <i>기울임</i> <font color='red'>빨강</font>")
+    box.resize(260, 150)
+    box.show()
+    app.processEvents()
+    img = box.grab()  # paintEvent(_draw_rich_title)가 예외 없이 실행되어야 한다
+    assert not img.isNull()
+
+
+def test_html_minimum_width_fits_document(app):
+    box, _ = _make_box()
+    box.setTitle("<b>아주 길고 긴 리치텍스트 제목입니다 ABCDEFG</b>")
+    box.show()
+    app.processEvents()
+    doc_w = box._title_document().idealWidth()
+    assert box.minimumSizeHint().width() >= doc_w
+
+
+def test_switch_html_to_plain_restores_path(app):
+    from qtpy.QtWidgets import QGroupBox
+    box, _ = _make_box()
+    box.setTitle("<b>HTML</b>")
+    assert box._is_rich is True
+    box.setTitle("plain 으로 변경")
+    assert box._is_rich is False
+    # plain 경로로 돌아오면 네이티브 제목에 (들여쓰기+제목)이 다시 들어간다.
+    assert QGroupBox.title(box).endswith("plain 으로 변경")
 
 
 def test_animation_props(app):

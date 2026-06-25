@@ -29,7 +29,8 @@ box.setCollapsed(True)
 `QGroupBox` 의 모든 API 호환. 추가 멤버:
 `setCollapsed/isCollapsed`, `collapsed`(Qt 프로퍼티), `collapse/expand/toggleCollapsed`,
 `setCollapsible/isCollapsible`, `setAnimated/isAnimated`,
-`setAnimationDuration/animationDuration`, `setArrowColor`, 시그널 `collapsedChanged(bool)`.
+`setAnimationDuration/animationDuration`, `setArrowColor`, `setTitle`(일반/HTML),
+시그널 `collapsedChanged(bool)`.
 
 ---
 
@@ -41,7 +42,7 @@ src/collapsible_groupbox/
 ├── collapsible_group_box.py  # 위젯 본체 (전체 구현이 이 한 파일)
 └── py.typed
 examples/  basic_example.py, embed_in_your_app.py
-tests/     test_collapsible.py  (pytest + offscreen, 15개)
+tests/     test_collapsible.py  (pytest + offscreen, 30개)
 docs/      demo.png
 ```
 
@@ -59,10 +60,34 @@ docs/      demo.png
 - **화살표 회전 애니메이션**: `arrowProgress` Qt 프로퍼티(0=접힘 › ~ 1=펼침 ˅)를
   `QPropertyAnimation` 으로 구동, setter 가 `update()` 호출 → `paintEvent` 가 회전각
   `-90°*(1-progress)` 로 셰브론을 다시 그린다. 색은 `setArrowColor` 또는 팔레트 글자색.
-- **접기 토글 트리거**: 별도 버튼/체크박스 대신 **타이틀 영역 클릭**. `mousePressEvent` 에서
-  `QStyle.subControlRect(CC_GroupBox, opt, SC_GroupBoxLabel)` 로 라벨 영역을 구해 hit-test.
-  `setCheckable(True)` 와 공존하도록 체크박스 인디케이터(`SC_GroupBoxCheckBox`) 위 클릭은
+- **HTML 리치텍스트 제목**: `setTitle` 이 `Qt.mightBeRichText` 로 HTML 여부를 자동 감지한다
+  (`_is_rich`). plain 이면 위 네이티브 경로 그대로. rich 이면 네이티브 제목은 자리(들여쓰기
+  공백)만 두고, `paintEvent`→`_draw_rich_title` 가 `QTextDocument`(캐시 `_title_doc`,
+  `setHtml`)로 라벨 위치에 직접 그린다(배경 `fillRect(Window)` 로 네이티브 잔상·프레임 선 지운
+  뒤 얹음, 색 미지정 부분은 `painter.setPen(글자색)`). 폭은 `_expand_hint_width` 가 rich 분기로
+  `label.left()+indent+doc.idealWidth()+pad` 를 보장(rich 는 말줄임 없음 — 좁으면 우측 클립).
+  폰트 변경 시 `changeEvent` 가 `_title_doc=None` 으로 무효화. `title()` 은 HTML 원본 반환.
+- **제목 잘림 방지**: 화살표 들여쓰기가 제목 폭을 ~25px 늘려 좁은 폭에서 끝 글자가
+  잘리던 문제를 두 가지로 막는다. (1) `minimumSizeHint()`/`sizeHint()` 를 오버라이드해
+  "전체 제목(들여쓰기 포함) + 우측 여백(`_title_right_pad`)" 폭을 항상 보장한다. (2) 그래도
+  폭이 부족하면 하드 클립 대신 `QFontMetrics.elidedText` 로 말줄임(…) 한다(`_apply_display_title`,
+  `resizeEvent`/`showEvent` 에서 재계산, `_applying_title` 재귀 가드). 표시 제목이 말줄임돼도
+  `minimumSizeHint` 는 전체 제목 기준이라 폭이 줄어드는 피드백 루프가 없다. `title()` 은 항상
+  말줄임 없는 순수 제목을 돌려준다(라벨 rect 자체는 스타일이 잉크폭에 맞추므로 바닐라
+  QGroupBox 와 동일하게 ~1–2px 빠듯할 수 있으나, 이는 폭 충분 시 시각적으로 문제없음).
+- **접기 토글 트리거**: 별도 버튼/체크박스 대신 **제목 줄 전체 클릭**. `_header_hit` 은
+  글자 라벨만이 아니라 `0 <= y <= _header_height()` 인 가로 전체를 헤더로 본다(빈 영역도 토글).
+  `mouseMoveEvent`/`leaveEvent` 로 헤더 위에서만 `PointingHandCursor` 를 띄우고 벗어나면
+  `unsetCursor`(상태는 `_hover_cursor` 로 추적, `setMouseTracking(True)` 필요).
+  `setCheckable(True)` 와 공존하도록 체크박스 인디케이터(`SC_GroupBoxCheckBox`) 위 클릭/hover 는
   QGroupBox 의 체크 토글로 양보한다.
+- **애니메이션 수명 관리**: `_start_animation(attr, prop, ...)` 공통 헬퍼가 이전 애니메이션을
+  `stop()+deleteLater()` 로 수거하고 종료 시에도 `deleteLater` 한다. (parent=self 로 만든
+  QPropertyAnimation 을 정리 안 하면 토글마다 자식으로 쌓여 누수 — 회귀 테스트 있음.)
+- **폰트/스타일/활성 변화 대응**: `changeEvent` 에서 `FontChange`/`StyleChange` 시 들여쓰기·
+  화살표·라벨 위치를 다시 계산하고, `EnabledChange` 시 화살표 색(비활성이면 `QPalette.Disabled`
+  글자색)을 다시 그린다. `resizeEvent` 는 **폭이 바뀐 경우에만** 말줄임을 재계산(높이만 바뀌는
+  접기 애니에서 매 프레임 `setTitle` 왕복 방지). `setArrowColor` 는 `QColor`/색문자열 모두 허용.
 - **높이 접기**: `boxHeight` Qt 프로퍼티(`setMinimumHeight`+`setMaximumHeight` 동시 설정)를
   `QPropertyAnimation` 으로 구동한다. min/max 를 함께 고정해야 자식 위젯이 만든 레이아웃
   최소높이를 무시하고 헤더 높이까지 줄일 수 있다. 접힘 끝나면 자식을 `hide()`(원래 보였던
@@ -80,7 +105,7 @@ docs/      demo.png
 
 - **언어**: 응답·주석·커밋·문서 한국어, 코드 식별자 영어. 들여쓰기 4칸.
 - **테스트**: `tests/`(pytest). 헤드리스: `QT_QPA_PLATFORM=offscreen python3 -m pytest -q`.
-  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 15개 통과 기준** — 변경 시 회귀 추가.
+  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 30개 통과 기준** — 변경 시 회귀 추가.
 - **검증 루틴**: 수정 후 `py_compile` + 전체 pytest 통과 확인.
 - **GUI 확인**: offscreen 으로 `widget.grab().save(png)` 캡처해 검토.
 - **호환성 주의**: 새 Qt enum/메서드 사용 시 Qt5/Qt6 양쪽 동작 확인(필요하면 헬퍼로 흡수).
