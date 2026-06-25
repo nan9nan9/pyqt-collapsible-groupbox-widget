@@ -41,9 +41,10 @@ box.setCollapsed(True)
 src/collapsible_groupbox/
 ├── __init__.py               # 공개 API (CollapsibleGroupBox)
 ├── collapsible_group_box.py  # 위젯 본체 (전체 구현이 이 한 파일)
+├── assets/*.svg              # 번들 SVG 아이콘 3종(currentColor)
 └── py.typed
 examples/  basic_example.py, embed_in_your_app.py
-tests/     test_collapsible.py  (pytest + offscreen, 49개)
+tests/     test_collapsible.py  (pytest + offscreen, 51개)
 docs/      demo.png
 ```
 
@@ -61,10 +62,14 @@ docs/      demo.png
 - **화살표 회전/모핑 애니메이션**: `arrowProgress` Qt 프로퍼티(0=접힘 ~ 1=펼침)를
   `QPropertyAnimation` 으로 구동, setter 가 `update()` 호출 → `paintEvent`→`_draw_arrow` 가
   스타일별로 다시 그린다. 색은 `setArrowColor` 또는 팔레트 글자색.
-- **아이콘 스타일 옵션**: `setArrowStyle(ArrowChevron|ArrowTriangle|ArrowPlusMinus)` (상수는 클래스
-  속성). `_draw_arrow` 가 분기: `_draw_chevron`(폴리라인, 회전 `-90°*(1-progress)`),
-  `_draw_triangle`(채워진 삼각형, 같은 회전), `_draw_plus_minus`(가로선 고정 + 세로선 길이를
-  `(1-progress)` 로 모핑 → +↔−). 선 펜은 `_stroke_pen` 공용 헬퍼.
+- **아이콘 스타일 옵션**: `setArrowStyle(...)` (목록은 `arrowStyles()`). 직접 그리는 3종 —
+  `_draw_chevron`(폴리라인, 회전 `-90°*(1-progress)`), `_draw_triangle`(채워진 삼각형, 같은 회전),
+  `_draw_plus_minus`(가로선 고정 + 세로선 길이를 `(1-progress)` 로 모핑 → +↔−). 선 펜은 `_stroke_pen`.
+- **번들 SVG 아이콘**: `ArrowSvgDoubleChevron`/`ArrowSvgArrow`/`ArrowSvgCircle` (파일은 `assets/*.svg`,
+  매핑 `_SVG_FILES`). `_draw_svg` 가 `QSvgRenderer` 로 회전 렌더. SVG 의 `currentColor` 를 글자색
+  hex 로 치환해 색 일관성 유지(`_svg_renderer` 캐시 키=`(파일,색)`, `_svg_text` 캐시). `QtSvg` 미설치
+  (`_HAS_SVG` False)거나 로드 실패 시 셰브론으로 graceful fallback. `pyproject` package-data 에
+  `assets/*.svg` 포함. SVG 는 viewBox 24, `fill/stroke="currentColor"`, "아래 방향" 기준으로 그린다.
 - **아이콘 크기**: `_arrow_size()` 는 `_arrow_size_override`(있으면) 우선, 없으면 폰트 기준
   (`fontMetrics*0.62`, 하한 9). `setArrowSize(px|None)` 로 인스턴스별 조절(크기가 들여쓰기·sizeHint
   에 영향하므로 `_refresh_title`+`updateGeometry`). 전역 기본값은 환경변수 `COLLAPSIBLE_ARROW_SIZE`
@@ -128,7 +133,7 @@ docs/      demo.png
 
 - **언어**: 응답·주석·커밋·문서 한국어, 코드 식별자 영어. 들여쓰기 4칸.
 - **테스트**: `tests/`(pytest). 헤드리스: `QT_QPA_PLATFORM=offscreen python3 -m pytest -q`.
-  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 49개 통과 기준** — 변경 시 회귀 추가.
+  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 51개 통과 기준** — 변경 시 회귀 추가.
 - **검증 루틴**: 수정 후 `py_compile` + 전체 pytest 통과 확인.
 - **GUI 확인**: offscreen 으로 `widget.grab().save(png)` 캡처해 검토.
 - **호환성 주의**: 새 Qt enum/메서드 사용 시 Qt5/Qt6 양쪽 동작 확인(필요하면 헬퍼로 흡수).

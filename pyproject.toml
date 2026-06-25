@@ -34,7 +34,7 @@ Homepage = "https://github.com/jekai/pyqt-collapsible-groupbox-widget"
 where = ["src"]
 
 [tool.setuptools.package-data]
-collapsible_groupbox = ["py.typed"]
+collapsible_groupbox = ["py.typed", "assets/*.svg"]
 
 [tool.pytest.ini_options]
 # src-layout 패키지를 설치 없이 import 할 수 있도록 경로 추가

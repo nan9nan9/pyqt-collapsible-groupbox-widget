@@ -19,7 +19,7 @@ import os
 
 from qtpy.QtCore import (
     Qt, Signal, Property, QPropertyAnimation, QEasingCurve,
-    QRectF, QPointF, QSize, QEvent,
+    QRectF, QPointF, QSize, QEvent, QByteArray,
 )
 from qtpy.QtGui import QPainter, QPen, QPolygonF, QPalette, QColor, QTextDocument
 from qtpy.QtWidgets import (
@@ -29,6 +29,14 @@ from qtpy.QtWidgets import (
     QStyle,
     QStyleOptionGroupBox,
 )
+
+# QtSvg 는 별도 모듈이라 없을 수도 있다(없으면 SVG 아이콘은 셰브론으로 graceful fallback).
+try:
+    from qtpy.QtSvg import QSvgRenderer
+    _HAS_SVG = True
+except Exception:  # pragma: no cover - QtSvg 미설치 환경 대비
+    QSvgRenderer = None
+    _HAS_SVG = False
 
 # QWidget 의 "무제한 높이" 상수. qtpy 가 노출하지 않으므로 직접 정의한다(Qt 공통값).
 _QWIDGETSIZE_MAX = 16777215
@@ -67,6 +75,41 @@ def _env_arrow_size():
     return None
 
 
+# SVG 아이콘: 파일은 assets/ 에 번들한다. fill/stroke="currentColor" 를 글자색으로 치환해 쓴다.
+_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+_svg_text_cache = {}       # filename -> svg 원본 텍스트
+_svg_renderer_cache = {}   # (filename, color_hex) -> QSvgRenderer
+
+
+def _svg_text(filename):
+    text = _svg_text_cache.get(filename)
+    if text is None:
+        try:
+            with open(os.path.join(_ASSETS_DIR, filename), encoding="utf-8") as f:
+                text = f.read()
+        except OSError:  # pragma: no cover - 에셋 누락 대비
+            text = ""
+        _svg_text_cache[filename] = text
+    return text
+
+
+def _svg_renderer(filename, color):
+    """currentColor 를 주어진 색으로 치환한 QSvgRenderer(캐시). 실패 시 None."""
+    if not _HAS_SVG:
+        return None
+    color_hex = color.name()
+    key = (filename, color_hex)
+    renderer = _svg_renderer_cache.get(key)
+    if renderer is None:
+        text = _svg_text(filename)
+        if not text:
+            return None
+        data = QByteArray(text.replace("currentColor", color_hex).encode("utf-8"))
+        renderer = QSvgRenderer(data)
+        _svg_renderer_cache[key] = renderer
+    return renderer if renderer.isValid() else None
+
+
 class CollapsibleGroupBox(QGroupBox):
     """접기/펴기가 가능한 QGroupBox.
 
@@ -86,7 +129,7 @@ class CollapsibleGroupBox(QGroupBox):
         - setAnimated(bool) / isAnimated()
         - setAnimationDuration(int) / animationDuration()
         - setArrowColor(color)                    (화살표 색 지정, None=글자색)
-        - setArrowStyle(style) / arrowStyle()     (ArrowChevron | ArrowTriangle | ArrowPlusMinus)
+        - setArrowStyle(style) / arrowStyle() / arrowStyles()  (셰브론·삼각형·±·SVG 3종)
         - setArrowSize(px) / arrowSize()          (None=폰트 자동, 환경변수 COLLAPSIBLE_ARROW_SIZE)
         - setTitle(text)                          (일반 텍스트 또는 HTML 리치텍스트)
         - setSummaryEnabled(bool) / isSummaryEnabled()  (접었을 때 요약 표시 on/off)
@@ -104,10 +147,21 @@ class CollapsibleGroupBox(QGroupBox):
     SummaryBeside = "beside"  # 제목 오른쪽편에
     SummaryInside = "inside"  # 접었을 때 박스 안쪽(제목 아래 줄)에
 
-    # 접기/펴기 아이콘 스타일
+    # 접기/펴기 아이콘 스타일 — 직접 그리는 기본 3종
     ArrowChevron = "chevron"        # ˅ / › 셰브론 (기본, 회전 애니메이션)
     ArrowTriangle = "triangle"      # ▼ / ▶ 채워진 삼각형 (회전 애니메이션)
     ArrowPlusMinus = "plusminus"    # − / + 플러스·마이너스 (세로선 모핑)
+    # 번들 SVG 아이콘 3종 (회전 애니메이션, 글자색을 따라감)
+    ArrowSvgDoubleChevron = "svg-double-chevron"  # 더블 셰브론 »
+    ArrowSvgArrow = "svg-arrow"                    # 막대 화살표
+    ArrowSvgCircle = "svg-circle"                  # 원 안 셰브론
+
+    # SVG 스타일 → 에셋 파일명
+    _SVG_FILES = {
+        ArrowSvgDoubleChevron: "double_chevron.svg",
+        ArrowSvgArrow: "arrow.svg",
+        ArrowSvgCircle: "circle_chevron.svg",
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -251,16 +305,22 @@ class CollapsibleGroupBox(QGroupBox):
         self._arrow_color = None if color is None else QColor(color)
         self.update()
 
-    def setArrowStyle(self, style):
-        """접기/펴기 아이콘 모양을 고른다.
+    @classmethod
+    def arrowStyles(cls):
+        """선택 가능한 아이콘 스타일 목록(직접 그리는 3종 + 번들 SVG 3종)."""
+        return (
+            cls.ArrowChevron, cls.ArrowTriangle, cls.ArrowPlusMinus,
+            cls.ArrowSvgDoubleChevron, cls.ArrowSvgArrow, cls.ArrowSvgCircle,
+        )
 
-        ArrowChevron(˅/›, 기본) / ArrowTriangle(▼/▶) / ArrowPlusMinus(−/+).
+    def setArrowStyle(self, style):
+        """접기/펴기 아이콘 모양을 고른다(arrowStyles() 중 하나).
+
+        직접 그리는 ArrowChevron(기본)/ArrowTriangle/ArrowPlusMinus 와,
+        번들 SVG 인 ArrowSvgDoubleChevron/ArrowSvgArrow/ArrowSvgCircle 이 있다.
         """
-        valid = (self.ArrowChevron, self.ArrowTriangle, self.ArrowPlusMinus)
-        if style not in valid:
-            raise ValueError(
-                "style must be ArrowChevron, ArrowTriangle or ArrowPlusMinus"
-            )
+        if style not in self.arrowStyles():
+            raise ValueError("unknown arrow style: %r" % (style,))
         if style == self._arrow_style:
             return
         self._arrow_style = style
@@ -663,12 +723,31 @@ class CollapsibleGroupBox(QGroupBox):
         rect = self._arrow_rect()
         size = rect.width()
         color = self._arrow_color if self._arrow_color is not None else self._title_text_color()
-        if self._arrow_style == self.ArrowPlusMinus:
+        style = self._arrow_style
+        if style in self._SVG_FILES:
+            if self._draw_svg(painter, rect, size, color, self._SVG_FILES[style]):
+                return
+            # SVG 로드 실패 시 셰브론으로 graceful fallback
+        if style == self.ArrowPlusMinus:
             self._draw_plus_minus(painter, rect, size, color)
-        elif self._arrow_style == self.ArrowTriangle:
+        elif style == self.ArrowTriangle:
             self._draw_triangle(painter, rect, size, color)
         else:
             self._draw_chevron(painter, rect, size, color)
+
+    def _draw_svg(self, painter, rect, size, color, filename):
+        """번들 SVG 아이콘을 회전시켜 그린다. 성공하면 True."""
+        renderer = _svg_renderer(filename, color)
+        if renderer is None:
+            return False
+        painter.save()
+        painter.translate(rect.center())
+        # 셰브론과 동일하게 0(접힘)=오른쪽 ~ 1(펼침)=아래로 회전.
+        painter.rotate(-90.0 * (1.0 - self._arrow_progress))
+        painter.translate(-size / 2.0, -size / 2.0)
+        renderer.render(painter, QRectF(0.0, 0.0, size, size))
+        painter.restore()
+        return True
 
     def _stroke_pen(self, color, size):
         pen = QPen(color)
