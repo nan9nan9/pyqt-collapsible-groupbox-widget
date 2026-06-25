@@ -41,7 +41,7 @@ box.setCollapsed(True)
 src/collapsible_groupbox/
 ├── __init__.py               # 공개 API (CollapsibleGroupBox)
 ├── collapsible_group_box.py  # 위젯 본체 (전체 구현이 이 한 파일)
-├── assets/*.svg              # 번들 SVG 아이콘 3종(currentColor)
+├── assets/*.svg              # 번들 SVG 아이콘 6종(currentColor)
 └── py.typed
 examples/  basic_example.py, embed_in_your_app.py
 tests/     test_collapsible.py  (pytest + offscreen, 51개)
@@ -65,7 +65,7 @@ docs/      demo.png
 - **아이콘 스타일 옵션**: `setArrowStyle(...)` (목록은 `arrowStyles()`). 직접 그리는 3종 —
   `_draw_chevron`(폴리라인, 회전 `-90°*(1-progress)`), `_draw_triangle`(채워진 삼각형, 같은 회전),
   `_draw_plus_minus`(가로선 고정 + 세로선 길이를 `(1-progress)` 로 모핑 → +↔−). 선 펜은 `_stroke_pen`.
-- **번들 SVG 아이콘**: `ArrowSvgDoubleChevron`/`ArrowSvgArrow`/`ArrowSvgCircle` (파일은 `assets/*.svg`,
+- **번들 SVG 아이콘**: `ArrowSvgCaret`/`ArrowSvgChevronThick`/`ArrowSvgAngle`/`ArrowSvgDoubleChevron`/`ArrowSvgArrow`/`ArrowSvgCircle` (6종, 파일은 `assets/*.svg`,
   매핑 `_SVG_FILES`). `_draw_svg` 가 `QSvgRenderer` 로 회전 렌더. SVG 의 `currentColor` 를 글자색
   hex 로 치환해 색 일관성 유지(`_svg_renderer` 캐시 키=`(파일,색)`, `_svg_text` 캐시). `QtSvg` 미설치
   (`_HAS_SVG` False)거나 로드 실패 시 셰브론으로 graceful fallback. `pyproject` package-data 에

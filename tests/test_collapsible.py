@@ -351,12 +351,17 @@ def test_invalid_arrow_style_raises(app):
         box.setArrowStyle("nope")
 
 
-def test_arrow_styles_list_has_six(app):
+def test_arrow_styles_list(app):
     styles = CollapsibleGroupBox.arrowStyles()
-    assert len(styles) == 6
+    # 직접 그리는 3종 + 번들 SVG 6종 = 9종, 중복 없음.
+    assert len(styles) == 9
+    assert len(set(styles)) == 9
     for st in (CollapsibleGroupBox.ArrowSvgDoubleChevron,
                CollapsibleGroupBox.ArrowSvgArrow,
-               CollapsibleGroupBox.ArrowSvgCircle):
+               CollapsibleGroupBox.ArrowSvgCircle,
+               CollapsibleGroupBox.ArrowSvgCaret,
+               CollapsibleGroupBox.ArrowSvgChevronThick,
+               CollapsibleGroupBox.ArrowSvgAngle):
         assert st in styles
 
 

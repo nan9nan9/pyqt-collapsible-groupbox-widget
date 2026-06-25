@@ -151,16 +151,22 @@ class CollapsibleGroupBox(QGroupBox):
     ArrowChevron = "chevron"        # ˅ / › 셰브론 (기본, 회전 애니메이션)
     ArrowTriangle = "triangle"      # ▼ / ▶ 채워진 삼각형 (회전 애니메이션)
     ArrowPlusMinus = "plusminus"    # − / + 플러스·마이너스 (세로선 모핑)
-    # 번들 SVG 아이콘 3종 (회전 애니메이션, 글자색을 따라감)
+    # 번들 SVG 아이콘 (회전 애니메이션, 글자색을 따라감)
     ArrowSvgDoubleChevron = "svg-double-chevron"  # 더블 셰브론 »
     ArrowSvgArrow = "svg-arrow"                    # 막대 화살표
     ArrowSvgCircle = "svg-circle"                  # 원 안 셰브론
+    ArrowSvgCaret = "svg-caret"                    # 채워진 둥근 caret
+    ArrowSvgChevronThick = "svg-chevron-thick"     # 굵은 둥근 셰브론
+    ArrowSvgAngle = "svg-angle"                     # 넓은 각 셰브론
 
     # SVG 스타일 → 에셋 파일명
     _SVG_FILES = {
         ArrowSvgDoubleChevron: "double_chevron.svg",
         ArrowSvgArrow: "arrow.svg",
         ArrowSvgCircle: "circle_chevron.svg",
+        ArrowSvgCaret: "caret.svg",
+        ArrowSvgChevronThick: "chevron_thick.svg",
+        ArrowSvgAngle: "angle.svg",
     }
 
     def __init__(self, *args, **kwargs):
@@ -307,11 +313,10 @@ class CollapsibleGroupBox(QGroupBox):
 
     @classmethod
     def arrowStyles(cls):
-        """선택 가능한 아이콘 스타일 목록(직접 그리는 3종 + 번들 SVG 3종)."""
+        """선택 가능한 아이콘 스타일 목록(직접 그리는 3종 + 번들 SVG)."""
         return (
             cls.ArrowChevron, cls.ArrowTriangle, cls.ArrowPlusMinus,
-            cls.ArrowSvgDoubleChevron, cls.ArrowSvgArrow, cls.ArrowSvgCircle,
-        )
+        ) + tuple(cls._SVG_FILES.keys())
 
     def setArrowStyle(self, style):
         """접기/펴기 아이콘 모양을 고른다(arrowStyles() 중 하나).

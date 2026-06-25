@@ -90,11 +90,16 @@ def main():
     QVBoxLayout(g_pm).addWidget(QCheckBox("옵션"))
     outer.addWidget(g_pm)
 
-    # 6-1) 번들 SVG 아이콘 (더블 셰브론 / 화살표 / 원형)
-    g_svg = CollapsibleGroupBox("SVG 더블 셰브론 아이콘")
-    g_svg.setArrowStyle(CollapsibleGroupBox.ArrowSvgDoubleChevron)
+    # 6-1) 번들 SVG 아이콘 (caret / 굵은 셰브론 / 넓은 각 / 더블 셰브론 / 화살표 / 원형)
+    g_svg = CollapsibleGroupBox("SVG caret 아이콘")
+    g_svg.setArrowStyle(CollapsibleGroupBox.ArrowSvgCaret)
     QVBoxLayout(g_svg).addWidget(QCheckBox("옵션"))
     outer.addWidget(g_svg)
+
+    g_svg2 = CollapsibleGroupBox("SVG 굵은 셰브론 아이콘")
+    g_svg2.setArrowStyle(CollapsibleGroupBox.ArrowSvgChevronThick)
+    QVBoxLayout(g_svg2).addWidget(QCheckBox("옵션"))
+    outer.addWidget(g_svg2)
 
     # 7) 아이콘 크기 키우기 (setArrowSize, 또는 환경변수 COLLAPSIBLE_ARROW_SIZE)
     g_big = CollapsibleGroupBox("큰 아이콘")
@@ -114,7 +119,7 @@ def main():
     outer.addWidget(toggle_btn)
 
     outer.addStretch(1)
-    root.resize(380, 840)
+    root.resize(380, 900)
     root.show()
     sys.exit(app.exec_())
 
