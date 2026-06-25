@@ -5,8 +5,8 @@
     python3 examples/basic_example.py
 
 여러 개의 접이식 그룹박스를 세로로 배치한다. 각 그룹박스의 제목 줄을 클릭하면
-접히거나 펴진다. 접었을 때 보이는 요약 위치(제목 오른쪽 / 박스 안쪽) 옵션을
-대비해서 보여준다.
+접히거나 펴진다. 요약 위치(제목 오른쪽 / 박스 안쪽) 옵션과, 제목을 굵게/색상으로
+꾸미는 두 가지 방법(HTML 제목 / 스타일시트)을 함께 보여준다.
 """
 
 import os
@@ -64,7 +64,22 @@ def main():
     g_inside.setCollapsed(True)
     outer.addWidget(g_inside)
 
-    # 4) 애니메이션을 끈 그룹 + 외부 토글 버튼
+    # 4) 제목을 굵게/색상으로 — 방법 A: HTML 제목(setTitle 에 태그를 넣으면 자동 인식)
+    g_html = CollapsibleGroupBox(
+        "<b>중요 설정</b> <font color='#e74c3c'>(주의)</font>"
+    )
+    QVBoxLayout(g_html).addWidget(QCheckBox("위험한 옵션 활성화"))
+    outer.addWidget(g_html)
+
+    # 5) 제목을 굵게/색상으로 — 방법 B: 스타일시트(QGroupBox::title)
+    g_qss = CollapsibleGroupBox("프로필")
+    g_qss.setStyleSheet(
+        "QGroupBox::title { color: #2e86de; font-weight: bold; }"
+    )
+    QVBoxLayout(g_qss).addWidget(QCheckBox("공개 프로필"))
+    outer.addWidget(g_qss)
+
+    # 6) 애니메이션을 끈 그룹 + 외부 토글 버튼
     g3 = CollapsibleGroupBox("애니메이션 없음")
     g3.setAnimated(False)
     f3 = QVBoxLayout(g3)
@@ -76,7 +91,7 @@ def main():
     outer.addWidget(toggle_btn)
 
     outer.addStretch(1)
-    root.resize(380, 560)
+    root.resize(380, 640)
     root.show()
     sys.exit(app.exec_())
 
