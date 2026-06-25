@@ -74,7 +74,7 @@ sync.setCollapsed(True)
 | `setAnimated(bool)` / `isAnimated()` | 애니메이션 사용 여부 (기본 True) |
 | `setAnimationDuration(ms)` / `animationDuration()` | 애니메이션 길이 (기본 180ms) |
 | `setArrowColor(color)` | 화살표 색 지정 (`QColor`/`"red"`/`"#3498db"`, `None`=글자색) |
-| `setArrowStyle(style)` / `arrowStyle()` / `arrowStyles()` | 아이콘 모양(총 9종). 기본 `ArrowChevron`(˅/›) / `ArrowTriangle`(▼/▶) / `ArrowPlusMinus`(−/+), 번들 SVG `ArrowSvgCaret` / `ArrowSvgChevronThick` / `ArrowSvgAngle` / `ArrowSvgDoubleChevron` / `ArrowSvgArrow` / `ArrowSvgCircle` |
+| `setArrowStyle(style)` / `arrowStyle()` | 아이콘 모양: `ArrowChevron`(˅/›, 기본) / `ArrowTriangle`(▼/▶) / `ArrowPlusMinus`(−/+) |
 | `setArrowSize(px)` / `arrowSize()` | 아이콘 크기(px). `None`=폰트에 맞춰 자동. 전역 기본값은 환경변수 `COLLAPSIBLE_ARROW_SIZE` |
 | `setTitle(text)` | 일반 텍스트 또는 **HTML**(`<b>`, `<font color>` 등) 지원 |
 | `setSummaryEnabled(bool)` / `isSummaryEnabled()` | **접었을 때** 헤더에 요약 표시 기능 on/off (기본 off) |

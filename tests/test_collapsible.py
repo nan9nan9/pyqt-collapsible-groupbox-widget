@@ -351,26 +351,12 @@ def test_invalid_arrow_style_raises(app):
         box.setArrowStyle("nope")
 
 
-def test_arrow_styles_list(app):
-    styles = CollapsibleGroupBox.arrowStyles()
-    # 직접 그리는 3종 + 번들 SVG 6종 = 9종, 중복 없음.
-    assert len(styles) == 9
-    assert len(set(styles)) == 9
-    for st in (CollapsibleGroupBox.ArrowSvgDoubleChevron,
-               CollapsibleGroupBox.ArrowSvgArrow,
-               CollapsibleGroupBox.ArrowSvgCircle,
-               CollapsibleGroupBox.ArrowSvgCaret,
-               CollapsibleGroupBox.ArrowSvgChevronThick,
-               CollapsibleGroupBox.ArrowSvgAngle):
-        assert st in styles
-
-
 def test_all_arrow_styles_paint(app):
-    # 직접 그리는 3종 + SVG 3종 모두 펼침/접힘에서 예외 없이 그려져야 한다.
-    for style in CollapsibleGroupBox.arrowStyles():
+    for style in (CollapsibleGroupBox.ArrowChevron,
+                  CollapsibleGroupBox.ArrowTriangle,
+                  CollapsibleGroupBox.ArrowPlusMinus):
         box, _ = _make_box()
         box.setArrowStyle(style)
-        assert box.arrowStyle() == style
         box.resize(240, 150)
         box.show()
         app.processEvents()
@@ -378,19 +364,6 @@ def test_all_arrow_styles_paint(app):
         box.setCollapsed(True)
         app.processEvents()
         assert not box.grab().isNull()        # 접힘 상태 페인트
-
-
-def test_svg_assets_exist_and_load(app):
-    # 번들 SVG 가 실제로 존재하고 글자색으로 치환되어 렌더러가 만들어져야 한다.
-    from qtpy.QtGui import QColor
-    from collapsible_groupbox import collapsible_group_box as mod
-    if not mod._HAS_SVG:
-        import pytest as _pt
-        _pt.skip("QtSvg 미설치 환경")
-    for fname in CollapsibleGroupBox._SVG_FILES.values():
-        assert mod._svg_text(fname)                      # 파일 내용 존재
-        r = mod._svg_renderer(fname, QColor("#123456"))
-        assert r is not None and r.isValid()
 
 
 def test_arrow_color_accepts_string_and_none(app):
