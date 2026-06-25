@@ -420,11 +420,12 @@ class CollapsibleGroupBox(QGroupBox):
             y = self._title_band_height()
             height = self._summary_line_height()
         else:
-            # 제목 오른쪽편에 배치
+            # 제목 오른쪽편에, 제목 텍스트(라벨 rect)와 같은 줄·세로 중앙으로 배치
+            label = self._subrect(QStyle.SC_GroupBoxLabel)
             x = int(self._title_right_edge() + 10)
             width = self.width() - x - 8
-            y = 0
-            height = self._title_band_height()
+            y = label.top()
+            height = label.height()
 
         if width < 16:
             lbl.hide()  # 표시할 공간이 없으면 숨긴다
@@ -640,8 +641,11 @@ class CollapsibleGroupBox(QGroupBox):
     def _arrow_rect(self):
         """화살표를 그릴 정사각형 영역(제목 줄 왼쪽 들여쓰기 자리)."""
         size = self._arrow_size()
-        cx = self._title_left() + size / 2.0 + 2.0
-        cy = self._title_band_height() / 2.0  # 헤더 줄 세로 중앙(아이콘 크기 반영)
+        label = self._subrect(QStyle.SC_GroupBoxLabel)
+        cx = label.left() + size / 2.0 + 2.0
+        # 제목 텍스트(라벨 rect)의 세로 중앙에 맞춘다. 다만 폰트보다 큰 아이콘이
+        # 헤더 위로 삐지지 않도록 하한을 둔다.
+        cy = max(label.center().y(), size / 2.0 + 2.0)
         return QRectF(cx - size / 2.0, cy - size / 2.0, size, size)
 
     def _title_text_color(self):

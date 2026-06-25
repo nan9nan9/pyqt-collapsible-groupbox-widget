@@ -304,6 +304,32 @@ def test_arrow_size_env_invalid_ignored(app, monkeypatch):
     assert box.arrowSize() == max(9, int(box.fontMetrics().height() * 0.62))
 
 
+def test_arrow_vertically_centered_with_title(app):
+    # 화살표 아이콘은 제목 텍스트(라벨 rect)의 세로 중앙과 맞아야 한다.
+    box, _ = _make_box("제목 텍스트")
+    box.resize(240, 150)
+    box.show()
+    app.processEvents()
+    label = box._subrect(QStyle.SC_GroupBoxLabel)
+    arrow = box._arrow_rect()
+    assert abs(arrow.center().y() - label.center().y()) <= 1.0
+
+
+def test_summary_beside_aligned_with_title(app):
+    # 옆에 붙는 요약은 제목 텍스트(라벨 rect)와 같은 줄·높이에 놓여 중앙이 맞아야 한다.
+    box, _ = _make_box()
+    box.setSummaryEnabled(True)
+    box.setSummary("요약")
+    box.resize(260, 150)
+    box.show()
+    box.setCollapsed(True)
+    app.processEvents()
+    label = box._subrect(QStyle.SC_GroupBoxLabel)
+    geo = box.summaryLabel().geometry()
+    assert geo.top() == label.top()
+    assert geo.height() == label.height()
+
+
 def test_large_arrow_fits_within_header(app):
     # 폰트보다 큰 아이콘을 줘도 헤더 줄이 함께 커져 화살표가 잘리지 않아야 한다.
     box, _ = _make_box()
