@@ -30,6 +30,7 @@ box.setCollapsed(True)
 `setCollapsed/isCollapsed`, `collapsed`(Qt 프로퍼티), `collapse/expand/toggleCollapsed`,
 `setCollapsible/isCollapsible`, `setAnimated/isAnimated`,
 `setAnimationDuration/animationDuration`, `setArrowColor`, `setTitle`(일반/HTML),
+`setSummaryEnabled/setSummary/setSummaryPosition/summaryLabel`,
 시그널 `collapsedChanged(bool)`.
 
 ---
@@ -42,7 +43,7 @@ src/collapsible_groupbox/
 ├── collapsible_group_box.py  # 위젯 본체 (전체 구현이 이 한 파일)
 └── py.typed
 examples/  basic_example.py, embed_in_your_app.py
-tests/     test_collapsible.py  (pytest + offscreen, 30개)
+tests/     test_collapsible.py  (pytest + offscreen, 38개)
 docs/      demo.png
 ```
 
@@ -81,6 +82,20 @@ docs/      demo.png
   `unsetCursor`(상태는 `_hover_cursor` 로 추적, `setMouseTracking(True)` 필요).
   `setCheckable(True)` 와 공존하도록 체크박스 인디케이터(`SC_GroupBoxCheckBox`) 위 클릭/hover 는
   QGroupBox 의 체크 토글로 양보한다.
+- **요약 라벨(접힘 전용)**: `setSummaryEnabled(bool)`/`setSummary(text)` 로 켜면, 접었을 때
+  `QLabel`(`_summary_label`, 자식)로 요약을 보여준다. 마우스는 `WA_TransparentForMouseEvents`
+  로 통과시켜 헤더 클릭 토글을 유지하고, 기본색은 팔레트 글자색 alpha 150이며 `summaryLabel()`
+  로 커스터마이즈한다. `_content_children()` 에서 제외(접기/펴기 hide 대상 아님).
+  `_after_collapse`/`_do_expand`/`resizeEvent`/`showEvent` 에서 `_update_summary_label` 로 갱신,
+  펼침·빈 텍스트·공간 부족(<16px) 이면 숨긴다.
+- **요약 위치 옵션**: `setSummaryPosition(SummaryBeside|SummaryInside)` (상수는 클래스 속성).
+  - `SummaryInside`: 접힌 높이(`_header_height`)에 `_summary_line_height` 를 더하고, 요약을 헤더
+    아래(`y=_title_band_height`, 프레임 안쪽 x)에 배치. `SummaryBeside` 는 제목 오른쪽
+    (`_title_right_edge` 옆, `y=0`).
+  - 헤더 띠/제목 시작점은 `_title_band()`(네이티브 라벨 rect)·`_title_left()`·`_title_band_height()`
+    로 계산하고 화살표/요약/sizeHint 가 공유한다.
+  - **제목 위치 자체는 옵션으로 제공하지 않는다**(과거 TitleAbove 실험은 제거됨). 제목은 네이티브
+    QGroupBox 렌더링을 그대로 쓰므로, 위치/스타일은 `QGroupBox::title { ... }` 스타일시트로 조정한다.
 - **애니메이션 수명 관리**: `_start_animation(attr, prop, ...)` 공통 헬퍼가 이전 애니메이션을
   `stop()+deleteLater()` 로 수거하고 종료 시에도 `deleteLater` 한다. (parent=self 로 만든
   QPropertyAnimation 을 정리 안 하면 토글마다 자식으로 쌓여 누수 — 회귀 테스트 있음.)
@@ -93,8 +108,8 @@ docs/      demo.png
   최소높이를 무시하고 헤더 높이까지 줄일 수 있다. 접힘 끝나면 자식을 `hide()`(원래 보였던
   것만 기억해 복원), 펼침 끝나면 min/max 제약을 풀어(`_saved_min`, `_QWIDGETSIZE_MAX`)
   레이아웃이 자연 크기를 정하게 한다.
-- **접힘 높이(`_header_height`)**: `SC_GroupBoxLabel`/`SC_GroupBoxCheckBox` rect 의 bottom +
-  프레임 폭으로 계산, `fontMetrics().height()+6` 하한.
+- **접힘 높이(`_header_height`)**: `_title_band_height()`(라벨/체크박스 bottom+프레임폭,
+  `fontMetrics+6` 하한) + (SummaryInside 활성 시 `_summary_line_height`).
 - **애니메이션 off / 비표시 상태**: `setAnimated(False)` 또는 `isVisible()==False` 면 즉시 반영.
 
 `_QWIDGETSIZE_MAX = 16777215` 은 qtpy 미노출이라 직접 정의(Qt 공통값).
@@ -105,7 +120,7 @@ docs/      demo.png
 
 - **언어**: 응답·주석·커밋·문서 한국어, 코드 식별자 영어. 들여쓰기 4칸.
 - **테스트**: `tests/`(pytest). 헤드리스: `QT_QPA_PLATFORM=offscreen python3 -m pytest -q`.
-  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 30개 통과 기준** — 변경 시 회귀 추가.
+  `pyproject.toml` 의 `pythonpath=src` 로 설치 없이 동작. **현재 38개 통과 기준** — 변경 시 회귀 추가.
 - **검증 루틴**: 수정 후 `py_compile` + 전체 pytest 통과 확인.
 - **GUI 확인**: offscreen 으로 `widget.grab().save(png)` 캡처해 검토.
 - **호환성 주의**: 새 Qt enum/메서드 사용 시 Qt5/Qt6 양쪽 동작 확인(필요하면 헬퍼로 흡수).

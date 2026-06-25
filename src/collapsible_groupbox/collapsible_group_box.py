@@ -16,12 +16,14 @@
 from __future__ import annotations
 
 from qtpy.QtCore import (
-    Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QRectF, QPointF, QSize, QEvent,
+    Qt, Signal, Property, QPropertyAnimation, QEasingCurve,
+    QRectF, QPointF, QSize, QEvent,
 )
 from qtpy.QtGui import QPainter, QPen, QPolygonF, QPalette, QColor, QTextDocument
 from qtpy.QtWidgets import (
     QGroupBox,
     QWidget,
+    QLabel,
     QStyle,
     QStyleOptionGroupBox,
 )
@@ -73,6 +75,10 @@ class CollapsibleGroupBox(QGroupBox):
 
     collapsedChanged = Signal(bool)
 
+    # 요약 위치 옵션
+    SummaryBeside = "beside"  # 제목 오른쪽편에
+    SummaryInside = "inside"  # 접었을 때 박스 안쪽(제목 아래 줄)에
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -100,6 +106,23 @@ class CollapsibleGroupBox(QGroupBox):
         self._title_right_pad = 6
         self._applying_title = False  # _apply_display_title 재귀 가드
         self._hover_cursor = False    # 헤더 위에서 손가락 커서를 띄웠는지 여부
+
+        # 요약 배치 옵션
+        self._summary_position = self.SummaryBeside
+
+        # 접었을 때 헤더에 보여줄 요약 라벨(기본 비활성). 마우스 이벤트는 통과시켜
+        # 헤더 클릭 토글을 유지하고, 기본색은 보조정보처럼 살짝 흐리게 둔다.
+        self._summary_enabled = False
+        self._summary_label = QLabel(self)
+        self._summary_label.setObjectName("collapsibleSummary")
+        self._summary_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._summary_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        _spal = self._summary_label.palette()
+        _scol = _spal.color(QPalette.WindowText)
+        _scol.setAlpha(150)
+        _spal.setColor(QPalette.WindowText, _scol)
+        self._summary_label.setPalette(_spal)
+        self._summary_label.hide()
 
         # 버튼을 누르지 않아도 헤더 위 hover 를 감지하려면 마우스 트래킹이 필요하다.
         self.setMouseTracking(True)
@@ -260,11 +283,89 @@ class CollapsibleGroupBox(QGroupBox):
         self._duration = max(0, int(ms))
 
     # ------------------------------------------------------------------
+    # 요약(접었을 때 헤더에 보이는 QLabel) API
+    # ------------------------------------------------------------------
+    def setSummaryEnabled(self, enabled):
+        """접었을 때 요약을 보여주는 기능을 켜고 끈다(기본 꺼짐)."""
+        self._summary_enabled = bool(enabled)
+        self._update_summary_label()
+
+    def isSummaryEnabled(self):
+        return self._summary_enabled
+
+    def setSummary(self, text):
+        """접었을 때 헤더에 표시할 요약 텍스트를 설정한다(HTML 도 가능)."""
+        self._summary_label.setText(text or "")
+        self._update_summary_label()
+
+    def summary(self):
+        return self._summary_label.text()
+
+    def summaryLabel(self):
+        """요약 QLabel 자체를 돌려준다(색·폰트·스타일시트 등 커스터마이즈용)."""
+        return self._summary_label
+
+    def setSummaryPosition(self, position):
+        """요약 위치: SummaryBeside(제목 오른쪽) 또는 SummaryInside(박스 안쪽)."""
+        if position not in (self.SummaryBeside, self.SummaryInside):
+            raise ValueError("position must be SummaryBeside or SummaryInside")
+        if position == self._summary_position:
+            return
+        self._summary_position = position
+        # 접힌 상태에서 위치를 바꾸면 접힌 높이도 달라지므로 다시 고정한다.
+        if self._collapsed:
+            self._stop_anim()
+            self._set_box_height(self._header_height())
+        self._update_summary_label()
+
+    def summaryPosition(self):
+        return self._summary_position
+
+    def _title_right_edge(self):
+        """헤더에서 제목 텍스트가 끝나는 x 좌표(요약을 그 옆에 붙이기 위함)."""
+        if self._is_rich:
+            x = self._title_left() + self._text_advance(self._title_indent())
+            return x + self._title_document().idealWidth()
+        return float(self._subrect(QStyle.SC_GroupBoxLabel).right())
+
+    def _update_summary_label(self):
+        """요약 라벨의 표시 여부·위치를 현재 상태/옵션에 맞춰 갱신한다."""
+        lbl = self._summary_label
+        if not (self._collapsed and self._summary_enabled and lbl.text()):
+            lbl.hide()
+            return
+
+        if self._summary_position == self.SummaryInside:
+            # 접힌 박스 안쪽(제목 줄 아래)에 한 줄로 배치
+            m = self.contentsMargins()
+            x = m.left() + 6
+            width = self.width() - x - m.right() - 6
+            y = self._title_band_height()
+            height = self._summary_line_height()
+        else:
+            # 제목 오른쪽편에 배치
+            x = int(self._title_right_edge() + 10)
+            width = self.width() - x - 8
+            y = 0
+            height = self._title_band_height()
+
+        if width < 16:
+            lbl.hide()  # 표시할 공간이 없으면 숨긴다
+            return
+        lbl.setGeometry(int(x), int(y), int(width), int(height))
+        lbl.show()
+        lbl.raise_()
+
+    # ------------------------------------------------------------------
     # 실제 접기/펴기 구현
     # ------------------------------------------------------------------
     def _content_children(self):
-        # QGroupBox 는 내부 위젯 자식이 없으므로 모든 QWidget 자식은 사용자 콘텐츠다.
-        return [c for c in self.children() if isinstance(c, QWidget)]
+        # QGroupBox 는 내부 위젯 자식이 없으므로 사용자 콘텐츠만 추린다.
+        # (요약 라벨은 헤더 장식이므로 접기/펴기 대상에서 제외한다.)
+        return [
+            c for c in self.children()
+            if isinstance(c, QWidget) and c is not self._summary_label
+        ]
 
     def _do_collapse(self):
         header = self._header_height()
@@ -285,8 +386,10 @@ class CollapsibleGroupBox(QGroupBox):
             w.hide()
         # 헤더 높이에 고정(접힌 동안 크기 유지).
         self._set_box_height(self._header_height())
+        self._update_summary_label()  # 접힘 완료 → 요약 표시
 
     def _do_expand(self):
+        self._update_summary_label()  # 펴기 시작 → 요약 즉시 숨김
         for w in self._hidden_children:
             w.show()
         self._hidden_children = []
@@ -397,14 +500,40 @@ class CollapsibleGroupBox(QGroupBox):
         opt = self._style_option()
         return self.style().subControlRect(QStyle.CC_GroupBox, opt, sub_control, self)
 
-    def _header_height(self):
-        """접었을 때 남길 높이(타이틀 줄 높이)를 스타일에서 계산한다."""
+    def _frame_top(self):
+        """그룹박스 프레임 상단 선 두께(px)."""
+        fw = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth, self._style_option(), self)
+        return max(2, fw)
+
+    def _summary_line_height(self):
+        return self._summary_label.sizeHint().height() + 4
+
+    def _summary_inside_active(self):
+        return (self._summary_position == self.SummaryInside
+                and self._summary_enabled and bool(self._summary_label.text()))
+
+    def _title_band_height(self):
+        """제목/화살표가 놓이는 헤더 상단 줄(제목 줄)의 높이."""
         label = self._subrect(QStyle.SC_GroupBoxLabel)
         checkbox = self._subrect(QStyle.SC_GroupBoxCheckBox)
         bottom = max(label.bottom(), checkbox.bottom(), 0)
-        frame = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth, self._style_option(), self)
-        h = bottom + max(4, frame)
+        h = bottom + max(4, self._frame_top())
         return max(h, self.fontMetrics().height() + 6)
+
+    def _header_height(self):
+        """접었을 때 남길 총 높이(제목 줄 + 필요 시 안쪽 요약 줄)."""
+        h = self._title_band_height()
+        if self._summary_inside_active():
+            h += self._summary_line_height()
+        return h
+
+    def _title_left(self):
+        """제목/화살표가 시작하는 왼쪽 x(들여쓰기 자리의 시작)."""
+        return self._subrect(QStyle.SC_GroupBoxLabel).left()
+
+    def _title_band(self):
+        """제목/화살표가 놓이는 헤더 상단 줄(제목 줄)의 사각형."""
+        return self._subrect(QStyle.SC_GroupBoxLabel)
 
     def _header_hit(self, pos):
         """주어진 위치가 제목 줄(접기 토글) 영역 안인지 판정한다.
@@ -427,11 +556,11 @@ class CollapsibleGroupBox(QGroupBox):
         return max(9, int(self.fontMetrics().height() * 0.62))
 
     def _arrow_rect(self):
-        """화살표를 그릴 정사각형 영역(타이틀 라벨 왼쪽 들여쓰기 자리)."""
-        label = self._subrect(QStyle.SC_GroupBoxLabel)
+        """화살표를 그릴 정사각형 영역(제목 줄 왼쪽 들여쓰기 자리)."""
+        band = self._title_band()
         size = self._arrow_size()
-        cx = label.left() + size / 2.0 + 2.0
-        cy = label.center().y() + 1.0
+        cx = self._title_left() + size / 2.0 + 2.0
+        cy = band.center().y() + 1.0
         return QRectF(cx - size / 2.0, cy - size / 2.0, size, size)
 
     def _title_text_color(self):
@@ -443,11 +572,10 @@ class CollapsibleGroupBox(QGroupBox):
         super().paintEvent(event)
         if not self._collapsible and not self._is_rich:
             return
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         if self._is_rich:
-            self._draw_rich_title(painter)
+            self._draw_rich_title(painter, self._title_band())
         if self._collapsible:
             self._draw_arrow(painter)
         painter.end()
@@ -478,19 +606,17 @@ class CollapsibleGroupBox(QGroupBox):
         ]))
         painter.restore()
 
-    def _draw_rich_title(self, painter):
-        """HTML 제목을 QTextDocument 로 라벨 위치에 직접 그린다."""
+    def _draw_rich_title(self, painter, band):
+        """HTML 제목을 QTextDocument 로 제목 줄(band) 위치에 직접 그린다."""
         doc = self._title_document()
-        label = self._subrect(QStyle.SC_GroupBoxLabel)
-        indent_px = self._text_advance(self._title_indent())
-        x = label.left() + indent_px
+        x = self._title_left() + self._text_advance(self._title_indent())
         doc_size = doc.size()
-        y = label.center().y() - doc_size.height() / 2.0
+        y = band.center().y() - doc_size.height() / 2.0
 
-        # 네이티브가 그린 자리(공백)·프레임 선 잔상을 지우고 그 위에 리치텍스트를 얹는다.
+        # 네이티브가 그린 자리(공백)·프레임 선 잔상을 지운 뒤 리치텍스트를 얹는다.
         bg = self.palette().color(QPalette.Window)
         painter.fillRect(
-            QRectF(x, label.top(), doc_size.width() + 2.0, label.height()), bg
+            QRectF(x, band.top(), doc_size.width() + 2.0, band.height()), bg
         )
 
         painter.save()
@@ -504,12 +630,11 @@ class CollapsibleGroupBox(QGroupBox):
     # (이 덕분에 레이아웃이 폭을 줄여 제목을 잘리게 만들지 않고, 끝 글자 잘림도 막는다.)
     # ------------------------------------------------------------------
     def _expand_hint_width(self, base):
+        # 리치텍스트는 제목을 우리가 직접 그리므로 base(네이티브)가 제목 폭을 모른다.
+        # 제목이 들어갈 폭을 직접 보장한다.
         if self._is_rich:
-            # 네이티브 제목은 공백뿐이라 base 가 리치텍스트 폭을 모른다. 직접 보장한다.
-            label_left = self._subrect(QStyle.SC_GroupBoxLabel).left()
-            indent_px = self._text_advance(self._title_indent())
-            need = int(label_left + indent_px + self._title_document().idealWidth()
-                       + self._title_right_pad)
+            x = self._title_left() + self._text_advance(self._title_indent())
+            need = int(x + self._title_document().idealWidth() + self._title_right_pad)
             return QSize(max(base.width(), need), base.height())
         # base 는 현재(말줄임됐을 수도 있는) 표시 제목 기준이므로, 줄어든 폭을 되돌려 더해 준다.
         full = self._title_indent() + self._title
@@ -533,10 +658,12 @@ class CollapsibleGroupBox(QGroupBox):
         # 바꾸므로, 폭 불변 시 재계산을 건너뛰어 매 프레임 setTitle 왕복을 막는다.)
         if event.oldSize().width() != event.size().width():
             self._apply_display_title()
+        self._update_summary_label()  # 접힌 상태면 요약 위치/폭 재배치
 
     def showEvent(self, event):
         super().showEvent(event)
         self._apply_display_title()
+        self._update_summary_label()
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -548,6 +675,7 @@ class CollapsibleGroupBox(QGroupBox):
         if event.type() in (QEvent.FontChange, QEvent.StyleChange):
             self._title_doc = None  # 폰트 바뀌면 리치텍스트 문서도 다시 만든다.
             self._refresh_title()
+            self._update_summary_label()
             self.update()
         elif event.type() == QEvent.EnabledChange:
             self.update()  # 화살표 색을 활성/비활성에 맞춰 다시 그린다.

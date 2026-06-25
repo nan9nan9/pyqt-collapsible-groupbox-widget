@@ -4,8 +4,9 @@
 
     python3 examples/basic_example.py
 
-여러 개의 접이식 그룹박스를 세로로 배치한다. 각 그룹박스의 제목(셰브론 화살표)을
-클릭하면 접히거나 펴진다. 두 번째 박스는 접힌 상태로 시작한다.
+여러 개의 접이식 그룹박스를 세로로 배치한다. 각 그룹박스의 제목 줄을 클릭하면
+접히거나 펴진다. 접었을 때 보이는 요약 위치(제목 오른쪽 / 박스 안쪽) 옵션을
+대비해서 보여준다.
 """
 
 import os
@@ -40,18 +41,30 @@ def main():
     f1.addLayout(row)
     outer.addWidget(g1)
 
-    # 2) 고급 옵션 그룹 — 접힌 상태로 시작
-    g2 = CollapsibleGroupBox("고급 설정")
-    f2 = QVBoxLayout(g2)
+    # 2) 접었을 때 요약을 제목 "오른쪽"에 표시 (SummaryBeside — 기본값)
+    g_beside = CollapsibleGroupBox("연결 설정")
+    g_beside.setSummaryEnabled(True)
+    g_beside.setSummary("호스트 2 · 연결됨")
+    g_beside.setSummaryPosition(CollapsibleGroupBox.SummaryBeside)  # 기본값이지만 명시
+    QVBoxLayout(g_beside).addWidget(QCheckBox("자동 재연결"))
+    g_beside.setCollapsed(True)
+    outer.addWidget(g_beside)
+
+    # 3) 접었을 때 요약을 박스 "안쪽" 줄에 표시 (SummaryInside)
+    g_inside = CollapsibleGroupBox("고급 옵션")
+    fi = QVBoxLayout(g_inside)
     spin_row = QHBoxLayout()
     spin_row.addWidget(QLabel("스레드 수:"))
     spin_row.addWidget(QSpinBox())
-    f2.addLayout(spin_row)
-    f2.addWidget(QCheckBox("실험적 기능 켜기"))
-    g2.setCollapsed(True)
-    outer.addWidget(g2)
+    fi.addLayout(spin_row)
+    fi.addWidget(QCheckBox("실험적 기능 켜기"))
+    g_inside.setSummaryEnabled(True)
+    g_inside.setSummary("스레드 4 · 실험적 기능 OFF")
+    g_inside.setSummaryPosition(CollapsibleGroupBox.SummaryInside)  # 박스 안쪽 줄에 요약
+    g_inside.setCollapsed(True)
+    outer.addWidget(g_inside)
 
-    # 3) 애니메이션을 끈 그룹 + 외부 토글 버튼
+    # 4) 애니메이션을 끈 그룹 + 외부 토글 버튼
     g3 = CollapsibleGroupBox("애니메이션 없음")
     g3.setAnimated(False)
     f3 = QVBoxLayout(g3)
@@ -63,7 +76,7 @@ def main():
     outer.addWidget(toggle_btn)
 
     outer.addStretch(1)
-    root.resize(360, 480)
+    root.resize(380, 560)
     root.show()
     sys.exit(app.exec_())
 

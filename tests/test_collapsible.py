@@ -325,6 +325,110 @@ def test_switch_html_to_plain_restores_path(app):
     assert QGroupBox.title(box).endswith("plain 으로 변경")
 
 
+def test_summary_shows_only_when_collapsed(app):
+    box, _ = _make_box()
+    box.setSummaryEnabled(True)
+    box.setSummary("요약 텍스트")
+    box.resize(280, 160)
+    box.show()
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is False  # 펼침 상태엔 숨김
+    box.setCollapsed(True)
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is True    # 접으면 표시
+    box.setCollapsed(False)
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is False    # 다시 펴면 숨김
+
+
+def test_summary_disabled_stays_hidden(app):
+    box, _ = _make_box()
+    box.setSummary("요약")
+    box.resize(280, 160)
+    box.show()
+    box.setCollapsed(True)
+    app.processEvents()
+    # 기본은 비활성이므로 접어도 안 보인다.
+    assert box.isSummaryEnabled() is False
+    assert box.summaryLabel().isVisible() is False
+    # 활성화하면 보이고, 다시 끄면 숨는다.
+    box.setSummaryEnabled(True)
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is True
+    box.setSummaryEnabled(False)
+    app.processEvents()
+    assert box.summaryLabel().isVisible() is False
+
+
+def test_empty_summary_not_shown(app):
+    box, _ = _make_box()
+    box.setSummaryEnabled(True)
+    box.resize(280, 160)
+    box.show()
+    box.setCollapsed(True)
+    app.processEvents()
+    # 요약 텍스트가 비어 있으면 표시하지 않는다.
+    assert box.summaryLabel().isVisible() is False
+    assert box.summary() == ""
+
+
+def test_summary_label_excluded_from_collapse(app):
+    # 요약 라벨은 콘텐츠가 아니므로 접기/펴기 시 hide/show 대상에서 제외된다.
+    box, _ = _make_box()
+    box.setSummaryEnabled(True)
+    box.setSummary("s")
+    box.show()
+    box.setCollapsed(True)
+    box.setCollapsed(False)
+    app.processEvents()
+    assert box._summary_label not in box._content_children()
+
+
+def test_summary_position_default(app):
+    box, _ = _make_box()
+    assert box.summaryPosition() == CollapsibleGroupBox.SummaryBeside
+
+
+def test_invalid_summary_position_raises(app):
+    box, _ = _make_box()
+    with pytest.raises(ValueError):
+        box.setSummaryPosition("nope")
+
+
+def test_summary_inside_is_taller_when_collapsed(app):
+    def collapsed_height(summary_pos):
+        b = CollapsibleGroupBox("제목")
+        QVBoxLayout(b).addWidget(QLabel("x"))
+        b.setAnimated(False)
+        b.setSummaryEnabled(True)
+        b.setSummary("요약")
+        b.setSummaryPosition(summary_pos)
+        b.resize(240, 160)
+        b.show()
+        b.setCollapsed(True)
+        app.processEvents()
+        return b.height()
+
+    beside = collapsed_height(CollapsibleGroupBox.SummaryBeside)
+    inside = collapsed_height(CollapsibleGroupBox.SummaryInside)
+    assert inside > beside  # Inside 는 제목 줄 + 요약 줄이라 더 높다
+
+
+def test_summary_position_combos_paint(app):
+    for sp in (CollapsibleGroupBox.SummaryBeside, CollapsibleGroupBox.SummaryInside):
+        box = CollapsibleGroupBox("제목")
+        QVBoxLayout(box).addWidget(QLabel("내용"))
+        box.setAnimated(False)
+        box.setSummaryEnabled(True)
+        box.setSummary("요약")
+        box.setSummaryPosition(sp)
+        box.resize(260, 150)
+        box.show()
+        box.setCollapsed(True)
+        app.processEvents()
+        assert not box.grab().isNull()
+
+
 def test_animation_props(app):
     box, _ = _make_box()
     box.setAnimated(True)

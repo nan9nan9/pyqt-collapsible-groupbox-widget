@@ -39,6 +39,10 @@ box.collapsedChanged.connect(print)       # 상태 변화 알림
 
 # 제목에 HTML(리치텍스트)도 가능 — 자동 감지된다
 box.setTitle("<b>설정</b> <font color='#e67e22'>●</font> 고급")
+
+# 접었을 때 헤더에 요약을 보여주기 (켜고 끌 수 있음)
+box.setSummaryEnabled(True)
+box.setSummary("자동저장 ON · 2개 항목")
 ```
 
 제목 줄(글자뿐 아니라 빈 영역 포함) 어디를 클릭해도 토글되며, 그 위에서는 손가락 커서가 뜬다.
@@ -58,7 +62,14 @@ box.setTitle("<b>설정</b> <font color='#e67e22'>●</font> 고급")
 | `setAnimationDuration(ms)` / `animationDuration()` | 애니메이션 길이 (기본 180ms) |
 | `setArrowColor(color)` | 화살표 색 지정 (`QColor`/`"red"`/`"#3498db"`, `None`=글자색) |
 | `setTitle(text)` | 일반 텍스트 또는 **HTML**(`<b>`, `<font color>` 등) 지원 |
+| `setSummaryEnabled(bool)` / `isSummaryEnabled()` | **접었을 때** 헤더에 요약 표시 기능 on/off (기본 off) |
+| `setSummary(text)` / `summary()` | 접었을 때 보일 요약 텍스트(HTML 가능) |
+| `setSummaryPosition(pos)` / `summaryPosition()` | 요약 위치: `SummaryBeside`(제목 오른쪽, 기본) / `SummaryInside`(박스 안쪽 줄) |
+| `summaryLabel()` | 요약 `QLabel` 직접 접근 (색·폰트·스타일시트 커스터마이즈) |
 | `collapsedChanged(bool)` 시그널 | 접힘 상태가 바뀔 때 발생 (True=접힘) |
+
+요약 위치 상수는 `CollapsibleGroupBox.SummaryBeside` / `.SummaryInside` 이다.
+제목 위치/스타일은 `QGroupBox` 표준 스타일시트(`QGroupBox::title { ... }`)로 조정한다.
 
 > `title()` 은 `setTitle` 에 넣은 **원본**을 그대로 반환한다(HTML 이면 HTML, 화살표 들여쓰기 제외).
 > 좁은 폭에서 일반 제목은 말줄임(…)으로, HTML 제목은 폭이 부족하면 우측이 잘린다.
