@@ -25,24 +25,37 @@ pip install PyQt5      # 또는 PySide6 / PySide2 / PyQt6
 ## 사용법
 
 기존 `QGroupBox` 를 쓰던 코드에서 **클래스 이름만 바꾸면** 된다.
+아래는 위 데모 화면(일반 / HTML 제목 / 요약 옆 / 요약 안쪽)을 그대로 만드는 코드다.
 
 ```python
 from collapsible_groupbox import CollapsibleGroupBox
-from qtpy.QtWidgets import QVBoxLayout, QCheckBox
+from qtpy.QtWidgets import QVBoxLayout, QCheckBox, QLabel, QLineEdit
 
-box = CollapsibleGroupBox("옵션")        # QGroupBox 대신 이것만
-layout = QVBoxLayout(box)
-layout.addWidget(QCheckBox("자동 저장"))
+# 1) 기본 — QGroupBox 대신 이 클래스만 쓰면 접기/펴기가 추가된다
+general = CollapsibleGroupBox("일반 설정")
+form = QVBoxLayout(general)
+form.addWidget(QCheckBox("자동 저장 사용"))
+form.addWidget(QLineEdit())
+general.collapsedChanged.connect(print)      # 접힘 상태 변화 알림
 
-box.setCollapsed(True)                    # 접어 두고 시작
-box.collapsedChanged.connect(print)       # 상태 변화 알림
+# 2) HTML(리치텍스트) 제목 — 자동 감지된다
+advanced = CollapsibleGroupBox("<b>고급</b> <font color='#e67e22'>●</font> 설정")
+QVBoxLayout(advanced).addWidget(QCheckBox("실험적 기능"))
 
-# 제목에 HTML(리치텍스트)도 가능 — 자동 감지된다
-box.setTitle("<b>설정</b> <font color='#e67e22'>●</font> 고급")
+# 3) 접었을 때 제목 오른쪽에 요약 표시 (기본: SummaryBeside)
+conn = CollapsibleGroupBox("연결 설정")
+QVBoxLayout(conn).addWidget(QCheckBox("자동 재연결"))
+conn.setSummaryEnabled(True)
+conn.setSummary("호스트 2 · 연결됨")
+conn.setCollapsed(True)
 
-# 접었을 때 헤더에 요약을 보여주기 (켜고 끌 수 있음)
-box.setSummaryEnabled(True)
-box.setSummary("자동저장 ON · 2개 항목")
+# 4) 접었을 때 박스 안쪽 줄에 요약 표시 (SummaryInside)
+sync = CollapsibleGroupBox("동기화")
+QVBoxLayout(sync).addWidget(QCheckBox("백그라운드 동기화"))
+sync.setSummaryEnabled(True)
+sync.setSummary("마지막 동기화 3분 전 · 12개 항목")
+sync.setSummaryPosition(CollapsibleGroupBox.SummaryInside)
+sync.setCollapsed(True)
 ```
 
 제목 줄(글자뿐 아니라 빈 영역 포함) 어디를 클릭해도 토글되며, 그 위에서는 손가락 커서가 뜬다.
@@ -90,4 +103,3 @@ QT_QPA_PLATFORM=offscreen python3 -m pytest -q
 ## 라이선스
 
 GPL-2.0-or-later
-# pyqt-collapsible-groupbox-widget
